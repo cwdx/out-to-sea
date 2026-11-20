@@ -6,6 +6,8 @@ export default {
   app: { name: "OutToSea", identifier: "com.chriswijnia.bar", version: pkg.version },
   // the menu bar item is the app: closing every window must not quit it
   runtime: { exitOnLastWindowClosed: false },
+  // the latest GitHub release holds each Mac's update manifest and archive under a fixed name
+  release: { baseUrl: "https://github.com/cwdx/out-to-sea/releases/latest/download", generatePatch: false },
   build: {
     mainProcess: "bun",
     bun: { entrypoint: "src/bun/index.ts" },

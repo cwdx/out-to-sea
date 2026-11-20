@@ -3,7 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
-import { BrowserView, BrowserWindow, GlobalShortcut, Screen, Tray, Utils } from "electrobun/main"
+import { BrowserView, BrowserWindow, GlobalShortcut, Screen, Tray, Updater, Utils } from "electrobun/main"
 import type { BarRPC, Session, Status } from "../rpc"
 import { skyFor } from "../shared/fixtures"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../shared/prefs"
@@ -69,7 +69,7 @@ const readExtra = async () => {
   }
 }
 
-const status = (): Status => ({ theme: prefs.theme, windowed: prefs.windowed, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
+const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
 
 const setLogin = async (on: boolean) => {
   const app = process.execPath.split(".app/")[0] + ".app"
@@ -104,7 +104,7 @@ const shoot = async () => {
 }
 
 type Handlers = Partial<BarRPC["bun"]["messages"] extends infer M ? { [K in keyof M]: (p: M[K]) => void } : never>
-const NONE = { close: () => undefined, finish: () => undefined, sound: () => undefined, save: () => undefined, breakNow: () => undefined, pause: () => undefined, settings: () => undefined, home: () => undefined, full: () => undefined, quit: () => undefined, fit: () => undefined }
+const NONE = { close: () => undefined, finish: () => undefined, sound: () => undefined, save: () => undefined, breakNow: () => undefined, pause: () => undefined, settings: () => undefined, home: () => undefined, full: () => undefined, update: () => undefined, quit: () => undefined, fit: () => undefined }
 const bridge = (messages: Handlers, session?: () => Session) =>
   BrowserView.defineRPC<BarRPC>({ handlers: { requests: { session: session ?? (() => ({}) as Session), prefs: () => prefs, status, place }, messages: { ...NONE, ...messages } } })
 
@@ -225,6 +225,7 @@ const popover = {
 function push() {
   popoverRpc.send.status(status())
   homeRpc?.send.status(status())
+  settingsRpc?.send.status(status())
 }
 panel.on("blur", () => popover.close())
 const openPopover = () => {
@@ -270,6 +271,7 @@ function openHome() {
 }
 
 let settings: BrowserWindow | undefined
+let settingsRpc: ReturnType<typeof bridge> | undefined
 function openSettings() {
   if (settings) return settings.activate()
   void readSky(true)
@@ -277,6 +279,7 @@ function openSettings() {
   const rpc = bridge({
     save: (next) => void apply(next),
     breakNow: takeBreak,
+    update: () => void update(true),
     home: () => {
       settings?.close()
       openHome()
@@ -286,7 +289,8 @@ function openSettings() {
   })
   const width = Math.min(prefs.settingsWidth, area.width)
   settings = new BrowserWindow({ title: "Out to Sea Settings", url: "views://app/index.html#/settings", frame: { x: area.x + (area.width - width) / 2, y: area.y + 80, width, height: 620 }, rpc })
-  settings.on("close", () => (settings = undefined))
+  settingsRpc = rpc
+  settings.on("close", () => (settings = settingsRpc = undefined))
   let settle: ReturnType<typeof setTimeout> | undefined
   settings.on("resize", () => {
     const size = settings?.getSize()
@@ -306,6 +310,34 @@ if (process.env.CW_BAR_SETTINGS) openSettings()
 if (process.env.CW_BAR_HOME) openHome()
 // the tray's bounds are only known once the menu bar has laid it out
 if (process.env.CW_BAR_POPOVER) setTimeout(openPopover, Number(process.env.CW_BAR_POPOVER) > 1 ? Number(process.env.CW_BAR_POPOVER) : 1500)
+
+let version = "", updateLine = ""
+void Updater.localInfo.version().then((v) => {
+  version = v
+  push()
+})
+const showUpdate = (line: string) => {
+  updateLine = line
+  push()
+}
+/** Fetches and installs a newer release, which restarts the app; never in the middle of a break. Quiet unless asked for. */
+const update = async (asked = false) => {
+  if (breaks.length) return
+  try {
+    if (asked) showUpdate("Checking…")
+    const found = await Updater.checkForUpdate()
+    if (found.error || !found.updateAvailable) return showUpdate(asked ? (found.error ? "Can't check right now" : "Up to date") : "")
+    showUpdate("Downloading the update…")
+    await Updater.downloadUpdate()
+    if (!Updater.updateInfo().updateReady || breaks.length) return showUpdate("")
+    showUpdate("Restarting to update…")
+    await Updater.applyUpdate()
+  } catch {
+    showUpdate(asked ? "Can't update right now" : "")
+  }
+}
+setTimeout(() => prefs.autoUpdate && void update(), 60_000)
+setInterval(() => prefs.autoUpdate && void update(), 6 * 3_600_000)
 
 setInterval(() => {
   const now = Date.now()

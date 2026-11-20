@@ -19,7 +19,7 @@ export type Session = {
   shot: string
 }
 
-export type Status = { theme: Prefs["theme"]; windowed: boolean; next: number | null; /** when the pause ends, or 0 */ paused: number; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
+export type Status = { version: string; /** what the Mac's updater is doing, for the settings to show; empty when idle */ update: string; theme: Prefs["theme"]; windowed: boolean; next: number | null; /** when the pause ends, or 0 */ paused: number; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
 
 export type BarRPC = {
   bun: RPCSchema<{
@@ -38,6 +38,8 @@ export type BarRPC = {
       breakNow: { start?: Session["start"] }
       /** pauses for this many milliseconds; 0 resumes */
       pause: { for: number }
+      /** checks for a new version now, and installs it */
+      update: Record<never, never>
       settings: Record<never, never>
       home: Record<never, never>
       full: { on: boolean }

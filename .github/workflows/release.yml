@@ -60,11 +60,14 @@ jobs:
           # the first Electrobun run fetches the devkit the views are built against
           mkdir -p dist && bunx electrobun build --env=stable || true
           bun run app
-          cp "artifacts/macos-$ARCH-OutToSea.dmg" "OutToSea-$TAG-$ARCH.dmg"
+          mkdir -p out
+          cp "artifacts/macos-$ARCH-OutToSea.dmg" "out/OutToSea-$TAG-$ARCH.dmg"
+          # what the app's updater fetches from the latest release, by these exact names
+          cp artifacts/stable-macos-"$ARCH"-* out/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dmg-${{ matrix.arch }}
-          path: packages/out-to-sea/OutToSea-*.dmg
+          path: packages/out-to-sea/out/*
 
   publish:
     needs: [version, build]
@@ -81,5 +84,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.version.outputs.tag }}
         run: |
-          gh release create "$TAG" OutToSea-*.dmg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Out to Sea $TAG" \
+          gh release create "$TAG" OutToSea-*.dmg stable-macos-* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Out to Sea $TAG" \
             --notes "Download arm64 for Apple silicon, x64 for Intel. Not yet signed: see the README to open it the first time."

@@ -7,6 +7,7 @@ import { pauseFor, Reminder } from "../../shared/reminder"
 import type { Sky } from "../../shared/sky"
 import { cityNamed, cityOfZone, placeNameAt, readWeather, skyOf, type Conditions } from "../../shared/weather"
 import { router } from "../router"
+import { version } from "../../../package.json"
 
 type Messages = BarRPC["bun"]["messages"]
 export type Send = { [K in keyof Messages]: (p: Messages[K]) => void }
@@ -58,7 +59,7 @@ const create = () => {
   }
   const liveSky = (): Sky => ({ ...skyOf(Date.now(), stored.value.city, stored.value.weather ? weather : null), at: Date.now() })
   const skyNow = (): Sky => skyFor(stored.value, liveSky())
-  const status = (): Status => ({ theme: stored.value.theme, windowed: false, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
+  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
   const push = () => {
     const s = status()
     for (const w of watchers) w(s)
@@ -150,6 +151,7 @@ const create = () => {
     fit: () => undefined,
     close: () => show("home"),
     home: () => show("home"),
+    update: () => undefined,
     full: () => undefined,
   }
 

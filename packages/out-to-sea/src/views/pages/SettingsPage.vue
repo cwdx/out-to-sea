@@ -127,6 +127,13 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
           <label class="row">Open at login
             <Switch v-model="prefs.login" class="switch"><SwitchThumb class="thumb" /></Switch>
           </label>
+          <div class="row">
+            <span class="stack">Update automatically<small v-if="status?.update">{{ status.update }}</small></span>
+            <span class="update">
+              <button type="button" class="link" @click="send.update({})">Check now</button>
+              <Switch v-model="prefs.autoUpdate" class="switch" aria-label="Update automatically"><SwitchThumb class="thumb" /></Switch>
+            </span>
+          </div>
         </template>
         <template v-else>
           <label v-if="prefs.weather" class="row">Use my location
@@ -138,7 +145,7 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
         </template>
       </section>
       <footer class="credits">
-        <p>By <a href="https://chriswijnia.com/lab/sea" target="_blank" rel="noreferrer">Chris Wijnia</a> · <a href="https://github.com/cwdx/out-to-sea" target="_blank" rel="noreferrer">Source</a>, MIT</p>
+        <p>By <a href="https://chriswijnia.com/lab/sea" target="_blank" rel="noreferrer">Chris Wijnia</a> · <a href="https://github.com/cwdx/out-to-sea" target="_blank" rel="noreferrer">Source</a>, MIT<template v-if="status?.version"> · Version {{ status.version }}</template></p>
         <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a></p>
       </footer>
     </form>
@@ -180,6 +187,9 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
   /* the small print rests at the foot of the sheet, however tall the window */
   .credits { margin-top: auto; display: grid; gap: 2px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
   .credits a { color: var(--teal); }
+  .update { display: flex; align-items: center; gap: 18px; }
+  .link { color: var(--teal); font-size: 13px; }
+  .link:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 3px; }
 }
 @media (max-width: 40rem) {
   .window { grid-template-columns: 1fr; grid-template-rows: 30dvh 1fr; }

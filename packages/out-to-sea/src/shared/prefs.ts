@@ -27,6 +27,8 @@ export type Prefs = {
   theme: "system" | "light" | "dark"
   windowed: boolean
   settingsWidth: number
+  /** on the Mac, new versions install themselves */
+  autoUpdate: boolean
   city?: City
 }
 
@@ -50,6 +52,7 @@ export const DEFAULTS: Prefs = {
   theme: "system",
   windowed: false,
   settingsWidth: 880,
+  autoUpdate: true,
 }
 
 const num = (v: unknown, min: number, max: number, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : fallback)
@@ -81,6 +84,7 @@ export const migrate = (raw: unknown): Prefs & Record<string, unknown> => {
     temp: typeof r.temp === "string" && r.temp in TEMPS ? (r.temp as Temp) : "",
     unit: r.unit === "c" || r.unit === "f" ? r.unit : "auto",
     windowed: r.windowed === true,
+    autoUpdate: r.autoUpdate !== false,
     settingsWidth: num(r.settingsWidth, 880, 2400, 880),
     theme: r.theme === "light" || r.theme === "dark" ? r.theme : "system",
     city: typeof city.latitude === "number" && typeof city.longitude === "number" && Math.abs(city.latitude) <= 90 && Math.abs(city.longitude) <= 180
