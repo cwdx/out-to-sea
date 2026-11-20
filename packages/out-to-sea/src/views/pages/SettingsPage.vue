@@ -185,7 +185,7 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
   .slider .knob { width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
   .slider .knob:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
   /* the small print rests at the foot of the sheet, however tall the window */
-  .credits { margin-top: auto; display: grid; gap: 2px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
+  .credits { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 18px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
   .credits a { color: var(--teal); }
   .update { display: flex; align-items: center; gap: 18px; }
   .link { color: var(--teal); font-size: 13px; }
