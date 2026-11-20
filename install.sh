@@ -25,6 +25,8 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "OutToSea.app/Contents/MacOS" >/dev/n
 pkill -f "OutToSea.app/Contents/MacOS" 2>/dev/null || true
 rm -rf "/Applications/$(basename "$app")"
 ditto "$app" "/Applications/$(basename "$app")"
+# the updater only updates the copy its install record names, so a record left by a copy run from elsewhere would stop updates
+rm -f "$HOME/Library/Application Support/com.chriswijnia.bar/stable/.electrobun-uninstall.json"
 # downloaded with curl it carries no quarantine flag, but a copy from a browser download might
 xattr -dr com.apple.quarantine "/Applications/$(basename "$app")" 2>/dev/null || true
 echo "Installed /Applications/$(basename "$app")"
