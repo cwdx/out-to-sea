@@ -1,0 +1,31 @@
+{
+  "name": "out-to-sea",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "bun run --filter '*' test",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "bun run --filter '*' lint",
+    "format": "bun run --filter '*' format",
+    "knip": "knip --workspace packages/out-to-sea"
+  },
+  "devDependencies": {
+    "knip": "6.44.1"
+  },
+  "overrides": {
+    "@typescript-eslint/parser/typescript": "6.0.3",
+    "@typescript-eslint/eslint-plugin/typescript": "6.0.3",
+    "@typescript-eslint/project-service/typescript": "6.0.3",
+    "@typescript-eslint/typescript-estree/typescript": "6.0.3",
+    "@typescript-eslint/type-utils/typescript": "6.0.3",
+    "@typescript-eslint/utils/typescript": "6.0.3",
+    "@typescript-eslint/tsconfig-utils/typescript": "6.0.3"
+  },
+  "trustedDependencies": [
+    "@vgpu/adapter-node",
+    "webgpu"
+  ]
+}

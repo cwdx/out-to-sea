@@ -1,0 +1,48 @@
+import type { RPCSchema } from "electrobun/main"
+import type { Pattern } from "./shared/clock"
+import type { City, Prefs } from "./shared/prefs"
+import type { Sky } from "./shared/sky"
+
+export type Session = {
+  seed: number
+  sky: Sky
+  start: "look" | "breathe"
+  /** seconds of looking away */
+  look: number
+  pattern: Pattern
+  sound: boolean
+  /** how loud, 0 to 1 */
+  volume: number
+  lead: boolean
+  windowed: boolean
+  /** the screen as a small mosaic for the dissolve, or empty for a plain fade */
+  shot: string
+}
+
+export type Status = { theme: Prefs["theme"]; windowed: boolean; next: number | null; paused: boolean; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
+
+export type BarRPC = {
+  bun: RPCSchema<{
+    requests: {
+      session: { params: Record<never, never>; response: Session }
+      prefs: { params: Record<never, never>; response: Prefs }
+      status: { params: Record<never, never>; response: Status }
+      place: { params: { name: string }; response: City | null }
+    }
+    messages: {
+      close: Record<never, never>
+      /** ends the break, and the next is counted from now; from the main screen it skips the coming one, a whole interval on */
+      finish: Record<never, never>
+      sound: { on: boolean }
+      save: Prefs
+      breakNow: { start?: Session["start"] }
+      pause: Record<never, never>
+      settings: Record<never, never>
+      home: Record<never, never>
+      full: { on: boolean }
+      quit: Record<never, never>
+      fit: { height: number }
+    }
+  }>
+  webview: RPCSchema<{ requests: Record<never, never>; messages: { status: Status } }>
+}

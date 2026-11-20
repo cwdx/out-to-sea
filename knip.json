@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    "packages/out-to-sea": {
+      "entry": [
+        "src/bun/index.ts",
+        "src/views/shared/no-app.ts",
+        "scripts/*.ts",
+        "electrobun.config.ts",
+        "golar.config.ts"
+      ],
+      "ignoreBinaries": [
+        "magick"
+      ]
+    }
+  }
+}
