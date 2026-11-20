@@ -63,10 +63,26 @@ export class Reminder {
   }
 }
 
+const HOUR = 3_600_000
+/** As a messaging app mutes a chat: for a while, or until undone. "Always" is ten years, so the arithmetic stays finite. */
+export const PAUSES = [["1 hour", HOUR], ["8 hours", 8 * HOUR], ["1 week", 168 * HOUR], ["Always", 87_600 * HOUR]] as const
+
+/** Pauses for `ms` and returns when the pause ends; 0 resumes. Either way the next break is a whole interval after it. */
+export const pauseFor = (r: Reminder, now: number, ms: number, interval: number) => {
+  r.setInterval(now, interval)
+  if (ms) r.postpone(now, ms)
+  return ms ? now + ms : 0
+}
+
+const clock = (at: number, now: number) => {
+  const time = new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  return at - now < 86_400_000 && new Date(at).getDate() === new Date(now).getDate() ? time : `${new Date(at).toLocaleDateString([], { weekday: "short" })} ${time}`
+}
+
 /** What the main screen and the menu say about the next break. */
-export const nextLine = (s: { next: number | null; paused: boolean; every: number }, now: number) => {
+export const nextLine = (s: { next: number | null; paused: number; every: number }, now: number) => {
   if (!s.every) return "No reminders"
+  if (s.paused) return s.paused - now > 8_760 * HOUR ? "Paused" : `Paused until ${clock(s.paused, now)}`
   if (s.next === null) return "On a break"
-  const minutes = Math.max(1, Math.ceil((s.next - now) / 60_000))
-  return s.paused ? `Paused, ${minutes} min left` : `Next break in ${minutes} min`
+  return `Next break in ${Math.max(1, Math.ceil((s.next - now) / 60_000))} min`
 }

@@ -19,7 +19,7 @@ export type Session = {
   shot: string
 }
 
-export type Status = { theme: Prefs["theme"]; windowed: boolean; next: number | null; paused: boolean; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
+export type Status = { theme: Prefs["theme"]; windowed: boolean; next: number | null; /** when the pause ends, or 0 */ paused: number; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
 
 export type BarRPC = {
   bun: RPCSchema<{
@@ -36,7 +36,8 @@ export type BarRPC = {
       sound: { on: boolean }
       save: Prefs
       breakNow: { start?: Session["start"] }
-      pause: Record<never, never>
+      /** pauses for this many milliseconds; 0 resumes */
+      pause: { for: number }
       settings: Record<never, never>
       home: Record<never, never>
       full: { on: boolean }

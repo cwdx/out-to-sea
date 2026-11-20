@@ -136,9 +136,11 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
             <Switch :model-value="prefs.notify" class="switch" @update:model-value="notify"><SwitchThumb class="thumb" /></Switch>
           </label>
         </template>
-        <p class="credit">Made by <a href="https://chriswijnia.com/lab/sea" target="_blank" rel="noreferrer">Chris Wijnia</a>, open source under the MIT licence: <a href="https://github.com/cwdx/out-to-sea" target="_blank" rel="noreferrer">source</a>.</p>
-        <p class="credit">Weather from <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, under <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a>. Only rounded coordinates are sent, at most hourly.</p>
       </section>
+      <footer class="credits">
+        <p>By <a href="https://chriswijnia.com/lab/sea" target="_blank" rel="noreferrer">Chris Wijnia</a> · <a href="https://github.com/cwdx/out-to-sea" target="_blank" rel="noreferrer">Source</a>, MIT</p>
+        <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a></p>
+      </footer>
     </form>
   </div>
 </template>
@@ -152,7 +154,7 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
   .preview .open-home { position: absolute; top: 24px; right: 13px; margin: 0; }
   .go { position: absolute; left: 24px; right: 24px; bottom: 30px; color: var(--ivory); display: flex; flex-wrap: wrap; gap: 0.4em 1.6em; font: 400 20px var(--serif); }
 
-  .sheet { padding: 20px 36px 16px 44px; display: grid; align-content: start; gap: 6px; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .sheet { padding: 20px 36px 16px 44px; display: flex; flex-direction: column; gap: 6px; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
   .sheet::-webkit-scrollbar { display: none; }
   &.app .sheet { padding: 12px 24px 10px 28px; }
   section { display: grid; padding-bottom: 8px; border-bottom: 1px solid var(--paper-line); }
@@ -175,8 +177,9 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
   .slider .range { height: 100%; border-radius: 2px; background: var(--teal); }
   .slider .knob { width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
   .slider .knob:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
-  .credit { color: var(--muted); font-size: 12px; padding: 12px 0 4px; }
-  .credit a { color: var(--teal); }
+  /* the small print rests at the foot of the sheet, however tall the window */
+  .credits { margin-top: auto; display: grid; gap: 2px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
+  .credits a { color: var(--teal); }
 }
 @media (max-width: 40rem) {
   .window { grid-template-columns: 1fr; grid-template-rows: 30dvh 1fr; }

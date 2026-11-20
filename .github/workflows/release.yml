@@ -1,5 +1,5 @@
 # Builds the Mac app for Apple silicon and Intel and publishes both as a GitHub release whenever the app's version
-# (electrobun.config.ts) has none yet.
+# (packages/out-to-sea/package.json) has none yet.
 name: release
 
 on:
@@ -28,7 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          v=$(sed -n 's/.*version: "\([0-9][^"]*\)".*/\1/p' packages/out-to-sea/electrobun.config.ts | head -1)
+          v=$(jq -r .version packages/out-to-sea/package.json)
           echo "tag=v$v" >> "$GITHUB_OUTPUT"
           if gh release view "v$v" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
 

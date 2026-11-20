@@ -65,7 +65,7 @@ export const connect = ({ status, sample = {} }: { status?: (s: Status) => void;
         shot: "",
       }),
       prefs: async () => stored.value,
-      status: async () => ({ theme: stored.value.theme, windowed: false, next: Date.now() + 12 * 60_000, paused: false, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky, live: sky, extra: [] }),
+      status: async () => ({ theme: stored.value.theme, windowed: false, next: Date.now() + 12 * 60_000, paused: 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky, live: sky, extra: [] }),
       place: async () => null,
     },
   }

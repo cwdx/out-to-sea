@@ -3,7 +3,7 @@ import type { BarRPC, Session, Status } from "../../rpc"
 import { skyFor } from "../../shared/fixtures"
 import { SEED } from "../../shared/sea"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type City, type Prefs } from "../../shared/prefs"
-import { Reminder } from "../../shared/reminder"
+import { pauseFor, Reminder } from "../../shared/reminder"
 import type { Sky } from "../../shared/sky"
 import { cityNamed, cityOfZone, placeNameAt, readWeather, skyOf, type Conditions } from "../../shared/weather"
 import { router } from "../router"
@@ -58,7 +58,7 @@ const create = () => {
   }
   const liveSky = (): Sky => ({ ...skyOf(Date.now(), stored.value.city, stored.value.weather ? weather : null), at: Date.now() })
   const skyNow = (): Sky => skyFor(stored.value, liveSky())
-  const status = (): Status => ({ theme: stored.value.theme, windowed: false, next: reminder.nextBreakAt, paused: pausedUntil > Date.now(), every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
+  const status = (): Status => ({ theme: stored.value.theme, windowed: false, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
   const push = () => {
     const s = status()
     for (const w of watchers) w(s)
@@ -110,14 +110,8 @@ const create = () => {
     show("home")
     push()
   }
-  const pause = () => {
-    if (pausedUntil > Date.now()) {
-      pausedUntil = 0
-      reminder.setInterval(Date.now(), interval())
-    } else {
-      pausedUntil = Date.now() + 3_600_000
-      reminder.postpone(Date.now(), 3_600_000)
-    }
+  const pause = ({ for: ms }: { for: number }) => {
+    pausedUntil = pauseFor(reminder, Date.now(), ms, interval())
     push()
   }
 

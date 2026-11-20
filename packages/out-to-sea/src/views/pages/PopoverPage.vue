@@ -6,7 +6,7 @@ import { useRoute } from "vue-router"
 import type { Status } from "../../rpc"
 import { degrees, type Prefs } from "../../shared/prefs"
 import { inkOf, SEED } from "../../shared/sea"
-import { nextLine } from "../../shared/reminder"
+import { nextLine, PAUSES } from "../../shared/reminder"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import { connect, useTheme } from "../shared/bridge"
@@ -45,6 +45,11 @@ const sound = computed({
   },
 })
 const picking = ref(false)
+const pausing = ref(false)
+const pauseFor = (ms: number) => {
+  pausing.value = false
+  send.pause({ for: ms })
+}
 const choose = (choice: Pick<Prefs, "hour" | "sky" | "temp">) => {
   if (!prefs.value) return
   prefs.value = { ...prefs.value, ...choice }
@@ -84,8 +89,12 @@ onKeyStroke("Escape", () => send.close({}))
       <ul v-if="status.extra.length" class="extra">
         <li v-for="line in status.extra" :key="line">{{ line }}</li>
       </ul>
+      <ul v-if="pausing" class="pauses">
+        <li v-for="[label, ms] in PAUSES" :key="label"><button type="button" class="line" @click="pauseFor(ms)">{{ label }}</button></li>
+      </ul>
       <footer>
-        <button type="button" @click="send.pause({})">{{ status.paused ? "Resume" : "Pause 1 hour" }}</button>
+        <button v-if="status.paused" type="button" @click="pauseFor(0)">Resume</button>
+        <button v-else type="button" :aria-expanded="pausing" @click="pausing = !pausing">Pause<span class="chevron" aria-hidden="true">›</span></button>
         <button type="button" @click="send.quit({})">Quit</button>
       </footer>
     </section>
@@ -114,7 +123,12 @@ html:has(.popover), html:has(.popover) body { background: transparent; }
   .skies { padding: 4px 0 14px; }
   .extra { list-style: none; padding: 10px 0; border-top: 1px solid var(--paper-line); display: grid; gap: 3px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   footer { display: flex; align-items: center; justify-content: space-between; min-height: 40px; border-top: 1px solid var(--paper-line); color: var(--muted); font-size: 12px; }
-  footer button { min-height: 40px; }
+  footer button { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
+  footer .chevron { font-size: 14px; }
+  /* how long to pause, opened above the footer as a messaging app offers how long to mute */
+  .pauses { list-style: none; padding: 0; border-top: 1px solid var(--paper-line); }
+  .pauses .line { min-height: 36px; font-size: 13px; }
+  .pauses li + li .line { border-top: 1px solid var(--paper-line); }
   footer button:is(:hover, :focus-visible) { color: var(--sheet-ink); }
 }
 </style>

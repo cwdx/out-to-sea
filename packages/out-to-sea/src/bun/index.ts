@@ -10,7 +10,7 @@ import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../share
 import type { Sky } from "../shared/sky"
 import { anchorBelow } from "./anchor"
 import { overEverything } from "./level"
-import { Reminder } from "../shared/reminder"
+import { pauseFor, Reminder } from "../shared/reminder"
 import { loadPrefs, savePrefs, type Stored } from "./store"
 import { cityNamed, type Conditions } from "../shared/weather"
 import { cityOfZone, getWeather, skyOf } from "./weather"
@@ -69,7 +69,7 @@ const readExtra = async () => {
   }
 }
 
-const status = (): Status => ({ theme: prefs.theme, windowed: prefs.windowed, next: reminder.nextBreakAt, paused: pausedUntil > Date.now(), every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
+const status = (): Status => ({ theme: prefs.theme, windowed: prefs.windowed, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
 
 const setLogin = async (on: boolean) => {
   const app = process.execPath.split(".app/")[0] + ".app"
@@ -190,14 +190,8 @@ const skip = () => {
 const takeBreak = ({ start }: { start?: Session["start"] } = {}) => {
   if (reminder.start(Date.now())) void openBreak(start)
 }
-const pause = () => {
-  if (pausedUntil > Date.now()) {
-    pausedUntil = 0
-    reminder.setInterval(Date.now(), interval())
-  } else {
-    pausedUntil = Date.now() + 3_600_000
-    reminder.postpone(Date.now(), 3_600_000)
-  }
+const pause = ({ for: ms }: { for: number }) => {
+  pausedUntil = pauseFor(reminder, Date.now(), ms, interval())
   push()
 }
 
