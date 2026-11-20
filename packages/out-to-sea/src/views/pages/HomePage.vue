@@ -9,6 +9,7 @@ import { nextLine } from "../../shared/reminder"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import { connect, inApp } from "../shared/bridge"
+import MacAppOffer from "../shared/MacAppOffer.vue"
 import SeaCanvas from "../shared/SeaCanvas.vue"
 import { useRise } from "../shared/motion"
 import WordChoices, { mainChoices } from "../shared/WordChoices.vue"
@@ -70,6 +71,7 @@ const choose = (choice: Pick<Prefs, "hour" | "sky" | "temp">) => {
         <WordChoices class="actions" :choices="mainChoices(send, !!status.every)" />
       </section>
     </Transition>
+    <MacAppOffer v-if="!picking" />
     <footer>
       <Transition :css="false" @enter="rise.enter" @leave="rise.leave">
         <SkyPicker v-if="picking && prefs" class="skies" :hour="prefs.hour" :sky="prefs.sky" :temp="prefs.temp" :unit="prefs.unit" :live="status.live" @choose="choose" />

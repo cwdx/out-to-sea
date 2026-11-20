@@ -58,11 +58,16 @@ thunderstorms. Cold air thins the cloud into high streaks, warm air heaps it up,
 
 ## Install
 
-**Mac.** Download the `.dmg` for your Mac (Apple silicon or Intel) from the
-[latest release](https://github.com/cwdx/out-to-sea/releases/latest), open it and drag Out to Sea to Applications.
+**Mac.** One line in Terminal installs the latest release for your Mac, Apple silicon or Intel, into Applications and
+opens it:
 
-The app is not yet signed with an Apple developer certificate, so macOS blocks the first launch and may say the app is
-damaged. Clear the download flag once, then open it as usual:
+```sh
+curl -fsSL https://raw.githubusercontent.com/cwdx/out-to-sea/main/install.sh | sh
+```
+
+Or download the `.dmg` from the [latest release](https://github.com/cwdx/out-to-sea/releases/latest) and drag Out to Sea
+to Applications. The app is not yet signed with an Apple developer certificate, so a downloaded copy is blocked on first
+launch and macOS may call it damaged; clear the download flag once, then open it as usual:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/OutToSea.app
