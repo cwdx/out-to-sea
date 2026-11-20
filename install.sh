@@ -19,7 +19,10 @@ hdiutil attach -quiet -nobrowse -mountpoint "$tmp/mnt" "$tmp/sea.dmg"
 app=$(find "$tmp/mnt" -maxdepth 1 -name "*.app" | head -1)
 [ -n "$app" ] || { echo "No app in the disk image" >&2; exit 1; }
 
+# a running copy is asked to quit and waited for, or the open below would only bring the old one forward as it exits
 osascript -e 'quit app "OutToSea"' 2>/dev/null || true
+for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "OutToSea.app/Contents/MacOS" >/dev/null || break; sleep 1; done
+pkill -f "OutToSea.app/Contents/MacOS" 2>/dev/null || true
 rm -rf "/Applications/$(basename "$app")"
 ditto "$app" "/Applications/$(basename "$app")"
 # downloaded with curl it carries no quarantine flag, but a copy from a browser download might
