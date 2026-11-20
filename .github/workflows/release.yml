@@ -1,5 +1,5 @@
-# Builds the Mac app and publishes it as a GitHub release whenever the app's version (electrobun.config.ts) is one that
-# has no release yet. The mirror commits here; this turns a version bump upstream into a download.
+# Builds the Mac app for Apple silicon and Intel and publishes both as a GitHub release whenever the app's version
+# (electrobun.config.ts) has none yet.
 name: release
 
 on:
@@ -15,10 +15,34 @@ permissions:
   contents: read
 
 jobs:
-  release:
-    runs-on: macos-15
-    permissions:
-      contents: write
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      new: ${{ steps.version.outputs.new }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(sed -n 's/.*version: "\([0-9][^"]*\)".*/\1/p' packages/out-to-sea/electrobun.config.ts | head -1)
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
+
+  build:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         working-directory: packages/out-to-sea
@@ -26,28 +50,36 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - name: Version
-        id: version
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          v=$(sed -n 's/.*version: "\([0-9][^"]*\)".*/\1/p' electrobun.config.ts | head -1)
-          echo "tag=v$v" >> "$GITHUB_OUTPUT"
-          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        if: steps.version.outputs.new == 'true'
       - name: Build
-        if: steps.version.outputs.new == 'true'
+        env:
+          ARCH: ${{ matrix.arch }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
           bun install
           # the first Electrobun run fetches the devkit the views are built against
           mkdir -p dist && bunx electrobun build --env=stable || true
           bun run app
+          cp "artifacts/macos-$ARCH-OutToSea.dmg" "OutToSea-$TAG-$ARCH.dmg"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: packages/out-to-sea/OutToSea-*.dmg
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: dmg-*
+          merge-multiple: true
       - name: Publish
-        if: steps.version.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
-          cp build/stable-macos-arm64/OutToSea-stable.dmg "OutToSea-$TAG-arm64.dmg"
-          gh release create "$TAG" "OutToSea-$TAG-arm64.dmg" --repo "$GITHUB_REPOSITORY" --title "Out to Sea $TAG" --notes "Apple silicon. Not yet signed: see the README to open it the first time."
+          gh release create "$TAG" OutToSea-*.dmg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Out to Sea $TAG" \
+            --notes "Download arm64 for Apple silicon, x64 for Intel. Not yet signed: see the README to open it the first time."

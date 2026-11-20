@@ -5,9 +5,9 @@ import { join } from "node:path"
 import { getWeather, parseForecast, skyOf } from "../src/bun/weather"
 import { sceneOf } from "../src/shared/sky"
 
-const now = Date.UTC(2026, 10, 19, 5)
+const now = Date.UTC(2026, 10, 19, 13)
 const reading = { current: { time: now / 1000 - 600, weather_code: 61, rain: 1.2, cloud_cover: 88, wind_speed_10m: 18 } }
-const city = { name: "Canggu", latitude: -8.65, longitude: 115.14 }
+const city = { name: "Lisbon", latitude: 38.72, longitude: -9.14 }
 const HOUR = 3_600_000
 let dir = ""
 afterEach(() => rm(dir, { recursive: true, force: true }))

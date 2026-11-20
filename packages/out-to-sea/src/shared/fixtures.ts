@@ -1,7 +1,7 @@
 import type { Sky } from "./sky"
 
 const day = (h: number, m = 0) => new Date(2026, 10, 19, h, m).getTime()
-const base = { rise: day(6, 30), set: day(18), cloud: 0.1, rain: 0, snow: 0, fog: 0, wind: 0.25, storm: 0, gust: 0, drift: 0.3, showers: 0, place: "Canggu", condition: "Clear" }
+const base = { rise: day(6, 30), set: day(18), cloud: 0.1, rain: 0, snow: 0, fog: 0, wind: 0.25, storm: 0, gust: 0, drift: 0.3, showers: 0, place: "Lisbon", condition: "Clear" }
 
 export const FIXTURES = {
   night: { ...base, at: day(22), cloud: 0.25, condition: "Partly cloudy" },

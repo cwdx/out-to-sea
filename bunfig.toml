@@ -1,5 +1,5 @@
 [install]
-# mirrors min-release-age=2 (days) in ~/.npmrc; the toolchain below moves at release speed
+# a newly published version waits two days before it installs; the toolchain below moves at release speed
 minimumReleaseAge = 172800
 minimumReleaseAgeExcludes = [
   "pinia-logger",
