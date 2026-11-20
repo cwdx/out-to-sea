@@ -304,6 +304,8 @@ function openSettings() {
 }
 
 Utils.setDockIconVisible(false)
+// the login item names this copy of the app, so a move or a reinstall keeps it pointing at the one that runs
+if (prefs.login) void setLogin(true).catch(() => undefined)
 void readSky(true)
 void readExtra()
 if (process.env.CW_BAR_SETTINGS) openSettings()
