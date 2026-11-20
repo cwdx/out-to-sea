@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 import { BrowserView, BrowserWindow, GlobalShortcut, Screen, Tray, Utils } from "electrobun/main"
 import type { BarRPC, Session, Status } from "../rpc"
 import { skyFor } from "../shared/fixtures"
-import { breathingOf, DEFAULTS, migrate, type Prefs } from "../shared/prefs"
+import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../shared/prefs"
 import type { Sky } from "../shared/sky"
 import { anchorBelow } from "./anchor"
 import { overEverything } from "./level"
@@ -28,7 +28,7 @@ if (loaded.migrated) await savePrefs(SETTINGS, prefs).catch(() => undefined)
 
 // CW_BAR_FOCUS_MS shortens the interval to test a break; CW_BAR_START opens one on breathing; CW_BAR_SKY fixes the sky;
 // CW_BAR_SETTINGS, CW_BAR_POPOVER and CW_BAR_HOME open those at launch
-const interval = () => Number(process.env.CW_BAR_FOCUS_MS ?? prefs.every * 60_000)
+const interval = () => Number(process.env.CW_BAR_FOCUS_MS ?? intervalOf(prefs.every))
 const reminder = new Reminder(Date.now(), interval())
 let pausedUntil = 0
 
@@ -323,7 +323,7 @@ setInterval(() => {
   }
   const next = reminder.nextBreakAt
   if (next !== null && next - now < 120_000) void readSky()
-  const title = next === null ? "" : `${Math.max(1, Math.ceil((next - now) / 60_000))}m`
+  const title = next === null || !prefs.every ? "" : `${Math.max(1, Math.ceil((next - now) / 60_000))}m`
   if (title !== tray.title) tray.setTitle(title)
 }, HEARTBEAT)
 setInterval(() => void readExtra(), 60_000)

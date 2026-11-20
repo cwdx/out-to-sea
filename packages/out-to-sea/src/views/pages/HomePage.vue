@@ -5,6 +5,7 @@ import { useRoute } from "vue-router"
 import type { Status } from "../../rpc"
 import { degrees, type Prefs } from "../../shared/prefs"
 import { inkOf, SEED } from "../../shared/sea"
+import { nextLine } from "../../shared/reminder"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import { connect, inApp } from "../shared/bridge"
@@ -41,11 +42,7 @@ const rise = useRise()
 
 const scene = computed(() => status.value && sceneOf(status.value.sky))
 const ink = computed(() => (scene.value ? inkOf(scene.value) : "light"))
-const next = computed(() => {
-  const s = status.value
-  if (!s || s.next === null) return "On a break"
-  return `Next break in ${Math.max(1, Math.ceil((s.next - now.value.getTime()) / 60_000))} min`
-})
+const next = computed(() => (status.value ? nextLine(status.value, now.value.getTime()) : ""))
 const prefs = shallowRef<Prefs>()
 void ask.prefs().then((p) => (prefs.value = p))
 const picking = ref(false)
@@ -70,7 +67,7 @@ const choose = (choice: Pick<Prefs, "hour" | "sky" | "temp">) => {
     <Transition :css="false" appear @enter="rise.enter">
       <section class="cue wash" :class="{ bare }" :inert="bare">
         <h1 class="swell">{{ next }}</h1>
-        <WordChoices class="actions" :choices="mainChoices(send)" />
+        <WordChoices class="actions" :choices="mainChoices(send, !!status.every)" />
       </section>
     </Transition>
     <footer>

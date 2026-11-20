@@ -39,7 +39,7 @@ const caption = computed(() => [sky.value?.place, sky.value?.condition, degrees(
 const THEME = [{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }] as const
 const UNIT = [{ value: "auto", label: `Automatic (°${unitOf().toUpperCase()})` }, { value: "c", label: "Celsius" }, { value: "f", label: "Fahrenheit" }] as const
 
-const EVERY = [10, 15, 20, 30, 45, 60], LOOK = [10, 20, 30, 45, 60]
+const EVERY = [0, 10, 15, 20, 30, 45, 60], LOOK = [10, 20, 30, 45, 60]
 const START = [{ value: "look", label: "Looking away" }, { value: "breathe", label: "Breathing" }] as const
 const options = (list: number[], current: number) => (list.includes(current) ? list : [...list, current].sort((a, b) => a - b))
 
@@ -79,7 +79,7 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
       <section>
         <h2>Breaks</h2>
         <div class="row"><span>Remind me every</span>
-          <PopupSelect v-model="prefs.every" label="Remind me every" :options="options(EVERY, prefs.every).map((m) => ({ value: m, label: `${m} min` }))" />
+          <PopupSelect v-model="prefs.every" label="Remind me every" :options="options(EVERY, prefs.every).map((m) => ({ value: m, label: m ? `${m} min` : 'Never' }))" />
         </div>
         <div class="row"><span>Look away for</span>
           <PopupSelect v-model="prefs.look" label="Look away for" :options="options(LOOK, prefs.look).map((s) => ({ value: s, label: `${s} sec` }))" />

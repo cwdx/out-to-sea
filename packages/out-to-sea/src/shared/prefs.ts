@@ -64,7 +64,7 @@ export const migrate = (raw: unknown): Prefs & Record<string, unknown> => {
   const city = obj(r.city)
   return {
     ...r,
-    every: num(r.every, 1, 120, DEFAULTS.every),
+    every: num(r.every, 0, 120, DEFAULTS.every),
     look: num(r.look, 10, 120, DEFAULTS.look),
     start: r.start === "breathe" ? "breathe" : "look",
     breathing: [num(p[0], 1, 30, d[0]), num(p[1], 0, 30, d[1]), num(p[2], 1, 30, d[2]), num(p[3], 0, 30, d[3])],
@@ -88,6 +88,9 @@ export const migrate = (raw: unknown): Prefs & Record<string, unknown> => {
       : undefined,
   }
 }
+
+/** Minutes between breaks as milliseconds; 0 is never, kept as a year so the reminder's arithmetic stays the same. */
+export const intervalOf = (every: number) => (every || 525_600) * 60_000
 
 export const breathingOf = ({ breathing: b }: Prefs): Pattern => pattern(...b)
 

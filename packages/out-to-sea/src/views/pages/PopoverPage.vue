@@ -6,6 +6,7 @@ import { useRoute } from "vue-router"
 import type { Status } from "../../rpc"
 import { degrees, type Prefs } from "../../shared/prefs"
 import { inkOf, SEED } from "../../shared/sea"
+import { nextLine } from "../../shared/reminder"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import { connect, useTheme } from "../shared/bridge"
@@ -35,13 +36,7 @@ useEventListener("focusin", (e) => !keyed && !(e.target as HTMLElement).matches(
 const scene = computed(() => status.value && sceneOf(status.value.sky))
 useSeaSound(() => status.value?.sound ?? false, () => status.value?.volume ?? 0.4, () => scene.value)
 const ink = computed(() => (scene.value ? inkOf(scene.value) : "light"))
-const next = computed(() => {
-  const s = status.value
-  if (!s) return ""
-  if (s.next === null) return "On a break"
-  const minutes = Math.max(1, Math.ceil((s.next - now.value.getTime()) / 60_000))
-  return s.paused ? `Paused, ${minutes} min left` : `Next break in ${minutes} min`
-})
+const next = computed(() => (status.value ? nextLine(status.value, now.value.getTime()) : ""))
 const sound = computed({
   get: () => status.value?.sound ?? true,
   set: (on: boolean) => {
@@ -74,7 +69,7 @@ onKeyStroke("Escape", () => send.close({}))
       </header>
       <div class="cue wash">
         <h1 class="swell">{{ next }}</h1>
-        <WordChoices class="actions" :choices="mainChoices(send)" />
+        <WordChoices class="actions" :choices="mainChoices(send, !!status.every)" />
       </div>
     </section>
     <section class="sheet">

@@ -62,3 +62,11 @@ export class Reminder {
     return this.active ? null : this.deadline
   }
 }
+
+/** What the main screen and the menu say about the next break. */
+export const nextLine = (s: { next: number | null; paused: boolean; every: number }, now: number) => {
+  if (!s.every) return "No reminders"
+  if (s.next === null) return "On a break"
+  const minutes = Math.max(1, Math.ceil((s.next - now) / 60_000))
+  return s.paused ? `Paused, ${minutes} min left` : `Next break in ${minutes} min`
+}

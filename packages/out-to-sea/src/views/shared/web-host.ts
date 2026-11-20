@@ -2,7 +2,7 @@ import { tryOnScopeDispose, until, useEventListener, useGeolocation, useLocalSto
 import type { BarRPC, Session, Status } from "../../rpc"
 import { skyFor } from "../../shared/fixtures"
 import { SEED } from "../../shared/sea"
-import { breathingOf, DEFAULTS, migrate, type City, type Prefs } from "../../shared/prefs"
+import { breathingOf, DEFAULTS, intervalOf, migrate, type City, type Prefs } from "../../shared/prefs"
 import { Reminder } from "../../shared/reminder"
 import type { Sky } from "../../shared/sky"
 import { cityNamed, cityOfZone, placeNameAt, readWeather, skyOf, type Conditions } from "../../shared/weather"
@@ -17,7 +17,7 @@ const SLEEP_GAP = 150_000
 
 const create = () => {
   const stored = useLocalStorage<Prefs>("outtosea:prefs", DEFAULTS, { mergeDefaults: (saved) => migrate(saved) })
-  const interval = () => stored.value.every * 60_000
+  const interval = () => intervalOf(stored.value.every)
   const reminder = new Reminder(Date.now(), interval(), SLEEP_GAP)
   const watchers = new Set<(s: Status) => void>()
   let pausedUntil = 0
