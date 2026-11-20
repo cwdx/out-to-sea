@@ -95,8 +95,8 @@ header { position: absolute; top: var(--edge-top); left: var(--edge-left); }
 .home { transition: border-radius 0.26s cubic-bezier(0.2, 0.7, 0.3, 1); }
 .home.windowed { border-radius: 26px; }
 :global(html:has(.home.windowed)), :global(html:has(.home.windowed) body) { background: transparent; }
-.grip { position: absolute; inset: 0 0 auto; height: 28px; z-index: 1; }
-.corner { position: absolute; top: calc(var(--edge-top) - 7px); right: calc(var(--foot-right) - 12px); margin: 0 -10px; }
+.grip { position: absolute; inset: 0 0 auto; height: 28px; }
+.corner { position: absolute; z-index: 1; top: calc(var(--edge-top) - 7px); right: calc(var(--foot-right) - 12px); margin: 0 -10px; }
 .cue { position: absolute; left: 8.1vw; top: calc(var(--edge-top) + 3.2rem); bottom: 54vh; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 0.6em; }
 h1 { font: 400 clamp(30px, 2.9vw, 52px) / 1.12 var(--serif); letter-spacing: -0.012em; }
 p { font: 400 clamp(15px, 1.25vw, 21px) / 1.3 var(--sans); opacity: 0.88; }
