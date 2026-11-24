@@ -3,7 +3,7 @@ import type { BarRPC, Session, Status } from "../../rpc"
 import { skyFor } from "../../shared/fixtures"
 import { SEED } from "../../shared/sea"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type City, type Prefs } from "../../shared/prefs"
-import { pauseFor, Reminder } from "../../shared/reminder"
+import { pauseFor, Reminder, snoozeFor } from "../../shared/reminder"
 import type { Sky } from "../../shared/sky"
 import { cityNamed, cityOfZone, placeNameAt, readWeather, skyOf, type Conditions } from "../../shared/weather"
 import { router } from "../router"
@@ -111,6 +111,11 @@ const create = () => {
     show("home")
     push()
   }
+  const snooze = () => {
+    finish()
+    snoozeFor(reminder, Date.now(), status(), interval())
+    push()
+  }
   const pause = ({ for: ms }: { for: number }) => {
     pausedUntil = pauseFor(reminder, Date.now(), ms, interval())
     push()
@@ -139,6 +144,7 @@ const create = () => {
 
   const send: Send = {
     finish,
+    snooze,
     sound: ({ on }) => apply({ ...stored.value, sound: on }),
     save: apply,
     breakNow: ({ start }) => reminder.start(Date.now()) && openBreak(start),

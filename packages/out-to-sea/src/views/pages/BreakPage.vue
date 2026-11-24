@@ -58,6 +58,11 @@ const finish = () => {
   ocean.value?.fade()
   enter("leaving", LEAVE)
 }
+const snoozing = ref(false)
+const snooze = () => {
+  snoozing.value = true
+  finish()
+}
 const settings = () => {
   ocean.value?.fade()
   send.finish({})
@@ -78,7 +83,8 @@ useIntervalFn(() => {
     enter("choice", CHOICE)
   } else if (stage.value === "choice" && t >= length.value) finish()
   else if (stage.value === "leaving" && t >= LEAVE) {
-    send.finish({})
+    if (snoozing.value) send.snooze({})
+    else send.finish({})
   }
 }, 100)
 
@@ -129,12 +135,12 @@ void ask.session().then((s) => {
       <Transition mode="out-in" :css="false" appear @enter="rise.enter" @leave="rise.leave">
         <section v-if="stage === 'gaze'" key="gaze" class="cue wash gaze" :class="{ settled: elapsed > CUE }">
           <h1 class="swell">Look into the distance.</h1>
-          <WordChoices class="durations" quiet :choices="[{ label: 'Skip', act: finish }]" />
+          <WordChoices class="durations" quiet :choices="[{ label: 'Snooze', aria: 'Snooze for 5 minutes', act: snooze }, { label: 'Skip', act: finish }]" />
         </section>
 
         <section v-else-if="stage === 'choice'" key="choice" class="cue wash choice">
           <h1 class="swell">Stay a little longer?</h1>
-          <WordChoices class="durations" :choices="[{ label: 'Breathe for 1 minute', act: () => breathe(1) }, { label: '5 minutes', aria: 'Breathe for 5 minutes', act: () => breathe(5) }, { label: 'Skip', act: finish }]" />
+          <WordChoices class="durations" :choices="[{ label: 'Breathe for 1 minute', act: () => breathe(1) }, { label: '5 minutes', aria: 'Breathe for 5 minutes', act: () => breathe(5) }, { label: 'Snooze', aria: 'Snooze for 5 minutes', act: snooze }, { label: 'Skip', act: finish }]" />
         </section>
 
         <section v-else-if="stage === 'breathing' && phase" key="breathing" class="cue wash breath">

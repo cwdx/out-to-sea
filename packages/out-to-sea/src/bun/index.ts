@@ -10,7 +10,7 @@ import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../share
 import type { Sky } from "../shared/sky"
 import { anchorBelow } from "./anchor"
 import { overEverything } from "./level"
-import { pauseFor, Reminder } from "../shared/reminder"
+import { pauseFor, Reminder, snoozeFor } from "../shared/reminder"
 import { loadPrefs, savePrefs, type Stored } from "./store"
 import { cityNamed, type Conditions } from "../shared/weather"
 import { cityOfZone, getWeather, skyOf } from "./weather"
@@ -104,7 +104,7 @@ const shoot = async () => {
 }
 
 type Handlers = Partial<BarRPC["bun"]["messages"] extends infer M ? { [K in keyof M]: (p: M[K]) => void } : never>
-const NONE = { close: () => undefined, finish: () => undefined, sound: () => undefined, save: () => undefined, breakNow: () => undefined, pause: () => undefined, settings: () => undefined, home: () => undefined, full: () => undefined, update: () => undefined, quit: () => undefined, fit: () => undefined }
+const NONE = { close: () => undefined, finish: () => undefined, snooze: () => undefined, sound: () => undefined, save: () => undefined, breakNow: () => undefined, pause: () => undefined, settings: () => undefined, home: () => undefined, full: () => undefined, update: () => undefined, quit: () => undefined, fit: () => undefined }
 const bridge = (messages: Handlers, session?: () => Session) =>
   BrowserView.defineRPC<BarRPC>({ handlers: { requests: { session: session ?? (() => ({}) as Session), prefs: () => prefs, status, place }, messages: { ...NONE, ...messages } } })
 
@@ -156,6 +156,7 @@ const openBreak = async (start = prefs.start) => {
     const session: Session = { ...base, lead: display === lead, shot: display === lead ? shot : "" }
     const rpc = bridge({
       finish: finishBreak,
+      snooze: snoozeBreak,
       sound: ({ on }) => void apply({ ...prefs, sound: on }),
       settings: openSettings,
       full: ({ on }) => {
@@ -181,6 +182,11 @@ function finishBreak() {
   // a break counts the next one from now, unless the reminder has already started over
   if (!uncounted) reminder.finish(Date.now())
   uncounted = false
+}
+function snoozeBreak() {
+  finishBreak()
+  snoozeFor(reminder, Date.now(), status(), interval())
+  push()
 }
 /** Skipping the coming break leaves the one after it where it was: a whole interval later. */
 const skip = () => {

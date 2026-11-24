@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { Reminder } from "../src/shared/reminder"
+import { Reminder, snoozeFor } from "../src/shared/reminder"
 
 test("one break at a time; the next counts from the end of this one", () => {
   const r = new Reminder(0, 20_000)
@@ -42,6 +42,29 @@ test("a pause pushes the next break back without changing the interval", () => {
   const r = new Reminder(0, 20_000)
   r.postpone(1_000, 3_600_000)
   expect(r.nextBreakAt).toBe(3_620_000)
+})
+
+test("a snooze ends the break and brings the next one back after the snooze, not the interval", () => {
+  const r = new Reminder(0, 20_000)
+  r.start(25_000)
+  r.snooze(30_000, 5_000)
+  expect(r.running).toBe(false)
+  expect(r.nextBreakAt).toBe(35_000)
+})
+
+test("a snooze does nothing when reminders are off or paused, and never outlasts the interval", () => {
+  const off = new Reminder(0, 20_000)
+  off.start(1_000)
+  snoozeFor(off, 2_000, { every: 0, paused: 0 }, 20_000)
+  expect(off.running).toBe(true)
+  const paused = new Reminder(0, 20_000)
+  paused.start(1_000)
+  snoozeFor(paused, 2_000, { every: 20, paused: 9_000 }, 20_000)
+  expect(paused.running).toBe(true)
+  const short = new Reminder(0, 60_000)
+  short.start(1_000)
+  snoozeFor(short, 2_000, { every: 1, paused: 0 }, 60_000)
+  expect(short.nextBreakAt).toBe(62_000)
 })
 
 test("an invalid interval keeps the deadline", () => {

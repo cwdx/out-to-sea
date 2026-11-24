@@ -33,6 +33,8 @@ export type BarRPC = {
       close: Record<never, never>
       /** ends the break, and the next is counted from now; from the main screen it skips the coming one, a whole interval on */
       finish: Record<never, never>
+      /** ends the break and brings the next one back in five minutes */
+      snooze: Record<never, never>
       sound: { on: boolean }
       save: Prefs
       breakNow: { start?: Session["start"] }

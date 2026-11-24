@@ -59,7 +59,8 @@ jobs:
           bun install
           # the first Electrobun run fetches the devkit the views are built against
           mkdir -p dist && bunx electrobun build --env=stable || true
-          bun run app
+          # the runners' disk-image tool sometimes finds its volume busy; a second try clears it
+          bun run app || { sleep 15; bun run app; }
           mkdir -p out
           cp "artifacts/macos-$ARCH-OutToSea.dmg" "out/OutToSea-$TAG-$ARCH.dmg"
           # what the app's updater fetches from the latest release, by these exact names

@@ -54,6 +54,13 @@ export class Reminder {
     if (!this.active) this.deadline = Math.max(this.deadline, now) + positive(ms)
   }
 
+  /** Ends the break and brings the next one back after `ms`, not a whole interval on. */
+  snooze(now: number, ms: number) {
+    this.active = false
+    this.last = now
+    this.deadline = now + positive(ms)
+  }
+
   get running() {
     return this.active
   }
@@ -63,6 +70,7 @@ export class Reminder {
   }
 }
 
+export const SNOOZE = 5 * 60_000
 const HOUR = 3_600_000
 /** As a messaging app mutes a chat: for a while, or until undone. "Always" is ten years, so the arithmetic stays finite. */
 export const PAUSES = [["1 hour", HOUR], ["8 hours", 8 * HOUR], ["1 week", 168 * HOUR], ["Always", 87_600 * HOUR]] as const
@@ -72,6 +80,11 @@ export const pauseFor = (r: Reminder, now: number, ms: number, interval: number)
   r.setInterval(now, interval)
   if (ms) r.postpone(now, ms)
   return ms ? now + ms : 0
+}
+
+/** Ends a break and brings the next back soon, unless reminders are off or paused: then it only ends the break. */
+export const snoozeFor = (r: Reminder, now: number, s: { every: number; paused: number }, interval: number) => {
+  if (s.every && !s.paused) r.snooze(now, Math.min(SNOOZE, interval))
 }
 
 const clock = (at: number, now: number) => {
