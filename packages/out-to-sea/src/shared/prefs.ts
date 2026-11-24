@@ -19,6 +19,8 @@ export type Prefs = {
   login: boolean
   locate: boolean
   notify: boolean
+  /** the time of day on the main screen */
+  clock: boolean
   menuPlugin: string
   hour: Hour | ""
   sky: Weather | ""
@@ -44,6 +46,7 @@ export const DEFAULTS: Prefs = {
   login: false,
   locate: true,
   notify: true,
+  clock: true,
   menuPlugin: "",
   hour: "",
   sky: "",
@@ -78,6 +81,7 @@ export const migrate = (raw: unknown): Prefs & Record<string, unknown> => {
     login: r.login === true,
     locate: r.locate !== false,
     notify: r.notify !== false,
+    clock: r.clock !== false,
     menuPlugin: typeof r.menuPlugin === "string" ? r.menuPlugin.trim() : "",
     hour: HOURS.find((h) => h === r.hour) ?? "",
     sky: typeof r.sky === "string" && r.sky in WEATHERS ? (r.sky as Weather) : "",

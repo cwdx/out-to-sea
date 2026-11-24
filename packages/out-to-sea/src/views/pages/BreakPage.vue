@@ -64,6 +64,7 @@ const snooze = () => {
   finish()
 }
 const settings = () => {
+  if (stage.value === "leaving") return
   ocean.value?.fade()
   send.finish({})
   send.settings({})
@@ -161,7 +162,7 @@ void ask.session().then((s) => {
           <button v-if="stage !== 'leaving'" type="button" class="word" @click="finish">Done<WaterLine /></button>
           <SoundToggle v-if="ocean" :on="ocean.on.value" @toggle="ocean.toggle" />
           <SavePicture :picture="() => sea?.picture()" />
-          <button type="button" class="tool" aria-label="Settings" @click="settings"><SettingsIcon /></button>
+          <button type="button" class="tool" aria-label="Settings" :disabled="stage === 'leaving'" @click="settings"><SettingsIcon /></button>
         </div>
       </footer>
     </template>

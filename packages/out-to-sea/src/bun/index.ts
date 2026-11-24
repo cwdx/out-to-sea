@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { readFile, rm, writeFile } from "node:fs/promises"
+import { appendFile, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -69,7 +69,7 @@ const readExtra = async () => {
   }
 }
 
-const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
+const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, clock: prefs.clock, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
 
 const setLogin = async (on: boolean) => {
   const app = process.execPath.split(".app/")[0] + ".app"
@@ -136,6 +136,7 @@ const openBreak = async (start = prefs.start) => {
   if (breaks.length || opening) return
   opening = true
   popover.close()
+  settings?.close()
   // the picture is taken before any window opens, or it would be of them; over the main screen the break just fades in
   const windowed = prefs.windowed, shot = prefs.dissolve && !home && !windowed ? await shoot() : ""
   const displays = Screen.getAllDisplays(), lead = pointed(displays)
@@ -158,7 +159,7 @@ const openBreak = async (start = prefs.start) => {
       finish: finishBreak,
       snooze: snoozeBreak,
       sound: ({ on }) => void apply({ ...prefs, sound: on }),
-      settings: openSettings,
+      settings: () => openSettings("break"),
       full: ({ on }) => {
         setWindowed(!on)
         frameScreen(w, display, !on)
@@ -208,7 +209,7 @@ const popoverRpc = bridge({
   finish: skip,
   settings: () => {
     popover.close()
-    openSettings()
+    openSettings("popover")
   },
   home: openHome,
   sound: ({ on }) => void apply({ ...prefs, sound: on }),
@@ -238,6 +239,7 @@ const openPopover = () => {
   if (panel.isVisible()) return popover.close()
   // a click on the icon first takes the focus from the panel, which closes it: that click is the close, not a new open
   if (Date.now() - hiddenAt < 300) return
+  settings?.close()
   const icon = tray.getBounds(), displays = Screen.getAllDisplays()
   room = (displays.find(({ bounds: b }) => icon.x >= b.x && icon.x < b.x + b.width) ?? displays[0]!).workArea
   const frame = anchorBelow(icon, room, panel.getSize())
@@ -254,13 +256,14 @@ let homeRpc: ReturnType<typeof bridge> | undefined
 function openHome() {
   if (home) return home.activate()
   popover.close()
+  settings?.close()
   const close = () => home?.close()
   homeRpc = bridge({
     breakNow: takeBreak,
     finish: skip,
     settings: () => {
       close()
-      openSettings()
+      openSettings("home")
     },
     sound: ({ on }) => void apply({ ...prefs, sound: on }),
     save: (next) => void apply(next),
@@ -278,7 +281,9 @@ function openHome() {
 
 let settings: BrowserWindow | undefined
 let settingsRpc: ReturnType<typeof bridge> | undefined
-function openSettings() {
+/** Settings that open unasked are rare and left no trace, so each opening names what asked for it and what was on screen. */
+function openSettings(from: string) {
+  void appendFile(join(homedir(), "Library/Logs/out-to-sea.log"), `${new Date().toISOString()} settings from ${from}; break ${breaks.length}, home ${!!home}, popover ${panel.isVisible()}, open ${!!settings}\n`).catch(() => undefined)
   if (settings) return settings.activate()
   void readSky(true)
   const area = Screen.getPrimaryDisplay().workArea
@@ -312,7 +317,7 @@ Utils.setDockIconVisible(false)
 if (prefs.login) void setLogin(true).catch(() => undefined)
 void readSky(true)
 void readExtra()
-if (process.env.CW_BAR_SETTINGS) openSettings()
+if (process.env.CW_BAR_SETTINGS) openSettings("env")
 if (process.env.CW_BAR_HOME) openHome()
 // the tray's bounds are only known once the menu bar has laid it out
 if (process.env.CW_BAR_POPOVER) setTimeout(openPopover, Number(process.env.CW_BAR_POPOVER) > 1 ? Number(process.env.CW_BAR_POPOVER) : 1500)

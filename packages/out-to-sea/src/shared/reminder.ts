@@ -70,7 +70,7 @@ export class Reminder {
   }
 }
 
-export const SNOOZE = 5 * 60_000
+const SNOOZE = 5 * 60_000
 const HOUR = 3_600_000
 /** As a messaging app mutes a chat: for a while, or until undone. "Always" is ten years, so the arithmetic stays finite. */
 export const PAUSES = [["1 hour", HOUR], ["8 hours", 8 * HOUR], ["1 week", 168 * HOUR], ["Always", 87_600 * HOUR]] as const

@@ -59,7 +59,7 @@ const create = () => {
   }
   const liveSky = (): Sky => ({ ...skyOf(Date.now(), stored.value.city, stored.value.weather ? weather : null), at: Date.now() })
   const skyNow = (): Sky => skyFor(stored.value, liveSky())
-  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
+  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
   const push = () => {
     const s = status()
     for (const w of watchers) w(s)
@@ -93,7 +93,7 @@ const create = () => {
 
   // a sample route (?scene=) is somebody inspecting a look, so the host never moves it
   const show = (name: "home" | "break" | "settings") => {
-    if (!router.currentRoute.value.query.scene) void router.push({ name })
+    if (!router.currentRoute.value.query.scene) void router.replace({ name })
   }
   const openBreak = (start = stored.value.start) => {
     uncounted = false

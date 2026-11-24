@@ -119,6 +119,9 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
         <div class="row"><span>Appearance</span>
           <PopupSelect v-model="prefs.theme" label="Appearance" :options="THEME" />
         </div>
+        <label class="row">Clock on the main screen
+          <Switch v-model="prefs.clock" class="switch"><SwitchThumb class="thumb" /></Switch>
+        </label>
         <template v-if="inApp">
           <label class="row">
             <span class="stack">Dissolve desktop<small>Needs screen recording. The picture stays on this Mac.</small></span>
@@ -172,7 +175,7 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
   .stack { display: grid; gap: 1px; }
   small { color: var(--muted); font-size: 12px; }
   .field { font: inherit; width: 100%; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--paper-line); background: var(--field); color: inherit; }
-  .field { width: min(220px, 55%); text-align: right; }
+  .field { box-sizing: border-box; width: 220px; max-width: 55%; padding-left: 14px; text-align: left; }
   .field:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
   .field:disabled { opacity: 0.5; }
 
