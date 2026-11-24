@@ -9,7 +9,7 @@ import { skyFor } from "../shared/fixtures"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../shared/prefs"
 import type { Sky } from "../shared/sky"
 import { anchorBelow } from "./anchor"
-import { overEverything } from "./level"
+import { FLOATING, overFullScreenApps, SCREEN, windowLevel } from "./level"
 import { pauseFor, Reminder, snoozeFor } from "../shared/reminder"
 import { loadPrefs, savePrefs, type Stored } from "./store"
 import { cityNamed, type Conditions } from "../shared/weather"
@@ -108,17 +108,19 @@ const NONE = { close: () => undefined, finish: () => undefined, snooze: () => un
 const bridge = (messages: Handlers, session?: () => Session) =>
   BrowserView.defineRPC<BarRPC>({ handlers: { requests: { session: session ?? (() => ({}) as Session), prefs: () => prefs, status, place }, messages: { ...NONE, ...messages } } })
 
-const frameScreen = (w: BrowserWindow, display: { bounds: { x: number; y: number; width: number; height: number } }, windowed: boolean, glide = true) => {
+const frameScreen = (w: BrowserWindow, display: { bounds: { x: number; y: number; width: number; height: number } }, windowed: boolean, glide = true, onBreak = false) => {
   const b = display.bounds, k = windowed ? 0.8 : 1, width = Math.round(b.width * k), height = Math.round(b.height * k)
   const to = [b.x + Math.round((b.width - width) / 2), b.y + Math.round((b.height - height) / 2), width, height] as const
-  if (!windowed) overEverything(w.ptr, true)
+  // a break stays above other windows even when it is not full screen: it takes no focus, so it would otherwise open behind them and only be heard
+  if (!windowed) windowLevel(w.ptr, SCREEN)
+  else if (onBreak) windowLevel(w.ptr, FLOATING)
   const from = glide ? w.getFrame() : undefined, start = Date.now(), MS = 260
   const step = () => {
     const t = from ? Math.min(1, (Date.now() - start) / MS) : 1, e = 1 - (1 - t) ** 3
     const at = from ? [from.x, from.y, from.width, from.height].map((v, i) => Math.round(v + (to[i]! - v) * e)) : to
     w.setFrame(at[0]!, at[1]!, at[2]!, at[3]!)
     if (t < 1) setTimeout(step, 12)
-    else if (windowed) overEverything(w.ptr, false)
+    else if (windowed && !onBreak) windowLevel(w.ptr, 0)
   }
   step()
 }
@@ -162,12 +164,13 @@ const openBreak = async (start = prefs.start) => {
       settings: () => openSettings("break"),
       full: ({ on }) => {
         setWindowed(!on)
-        frameScreen(w, display, !on)
+        frameScreen(w, display, !on, true, true)
       },
     }, () => session)
     const w = new BrowserWindow({ title: "Out to Sea", url: "views://app/index.html#/break", frame: display.bounds, titleBarStyle: "hidden", transparent: true, rpc })
-    frameScreen(w, display, windowed, false)
+    frameScreen(w, display, windowed, false, true)
     w.setVisibleOnAllWorkspaces(true)
+    overFullScreenApps(w.ptr)
     return w
   })
   GlobalShortcut.register("Escape", finishBreak)

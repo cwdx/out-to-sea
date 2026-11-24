@@ -14,9 +14,15 @@ const send = (to: Pointer | null, selector: string, a: Pointer | number | null =
 const SCREEN_SAVER = 1000
 
 /** AppKit is only touched on its own thread, which takes one object from another, so the level goes as a key and its value. */
-export const overEverything = (window: Pointer | null, on = true) => {
-  const level = send(cls("NSNumber"), "numberWithLong:", on ? SCREEN_SAVER : 0)
-  const key = send(cls("NSString"), "stringWithUTF8String:", ptr(text("level")))
-  const values = send(cls("NSDictionary"), "dictionaryWithObject:forKey:", level, key)
+const setValue = (window: Pointer | null, name: string, value: number) => {
+  const number = send(cls("NSNumber"), "numberWithLong:", value)
+  const key = send(cls("NSString"), "stringWithUTF8String:", ptr(text(name)))
+  const values = send(cls("NSDictionary"), "dictionaryWithObject:forKey:", number, key)
   send(window, "performSelectorOnMainThread:withObject:waitUntilDone:", sel("setValuesForKeysWithDictionary:"), values, 1)
 }
+/** 1000 is above everything but the menu bar's own tools; 3 floats above other apps' windows; 0 is an ordinary window. */
+export const windowLevel = (window: Pointer | null, level: number) => setValue(window, "level", level)
+/** On every Space, and over an app that has gone full screen: canJoinAllSpaces with fullScreenAuxiliary. */
+export const overFullScreenApps = (window: Pointer | null) => setValue(window, "collectionBehavior", 1 | 256)
+export const SCREEN = SCREEN_SAVER
+export const FLOATING = 3
