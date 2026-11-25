@@ -138,10 +138,10 @@ h1 { font: 400 clamp(30px, 2.9vw, 52px) / 1.12 var(--serif); letter-spacing: -0.
 .caption { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6em; }
 .clock { position: absolute; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.3em; pointer-events: none; font-family: "Sea Clock", var(--sans); font-weight: 600; transition: opacity var(--dur-slow) var(--ease); }
 .clock.bare { opacity: 0; }
-/* a minute-old clock needs no tabular figures: proportional ones close the gap round a 1, and the colon is pulled in and lifted to the middle of the digits; a transform here would take it out of the glass fill */
-.time i { font-style: normal; margin-inline: -0.05em; position: relative; top: -0.05em; }
+/* a minute-old clock needs no tabular figures: proportional ones close the gap round a 1, and the colon is pulled in and lifted to the middle of the digits; positioning it would take it out of the glass fill, so it is raised with vertical-align */
+.time i { font-style: normal; margin-inline: -0.05em; vertical-align: 0.06em; }
 .date { font-size: max(16px, calc(var(--clock) * 0.1)); line-height: 1; letter-spacing: 0.02em; text-shadow: 0 1px 14px var(--wash); }
-.time { font-size: var(--clock); line-height: 1; padding: 0.12em 0.06em; margin: -0.12em -0.06em; letter-spacing: -0.02em; font-variant-numeric: lining-nums proportional-nums; -webkit-text-fill-color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, currentColor 40%, transparent); background: linear-gradient(180deg, color-mix(in srgb, currentColor 90%, transparent), color-mix(in srgb, currentColor 32%, transparent)); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 2px 22px var(--wash)); }
+.time { font-size: var(--clock); line-height: 1; padding: 0.12em 0.06em; margin: -0.12em -0.06em; letter-spacing: -0.02em; font-variant-numeric: lining-nums proportional-nums; -webkit-text-fill-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, currentColor 90%, transparent), color-mix(in srgb, currentColor 32%, transparent)); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 2px 22px var(--wash)); }
 p { font: 400 clamp(15px, 1.25vw, 21px) / 1.3 var(--sans); opacity: 0.88; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5em 2.2em; margin-top: 0.5em; font: 400 clamp(20px, 1.75vw, 30px) / 1.2 var(--serif); }
 .cue { transition: opacity var(--dur-slow) var(--ease); }
