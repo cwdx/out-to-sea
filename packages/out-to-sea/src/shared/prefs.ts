@@ -21,6 +21,10 @@ export type Prefs = {
   notify: boolean
   /** the time of day on the main screen */
   clock: boolean
+  /** no breaks start from `quietFrom` until `quietTo`, in whole hours of the day */
+  quiet: boolean
+  quietFrom: number
+  quietTo: number
   menuPlugin: string
   hour: Hour | ""
   sky: Weather | ""
@@ -47,6 +51,9 @@ export const DEFAULTS: Prefs = {
   locate: true,
   notify: true,
   clock: true,
+  quiet: true,
+  quietFrom: 22,
+  quietTo: 7,
   menuPlugin: "",
   hour: "",
   sky: "",
@@ -82,6 +89,9 @@ export const migrate = (raw: unknown): Prefs & Record<string, unknown> => {
     locate: r.locate !== false,
     notify: r.notify !== false,
     clock: r.clock !== false,
+    quiet: r.quiet !== false,
+    quietFrom: num(r.quietFrom, 0, 23, DEFAULTS.quietFrom),
+    quietTo: num(r.quietTo, 0, 23, DEFAULTS.quietTo),
     menuPlugin: typeof r.menuPlugin === "string" ? r.menuPlugin.trim() : "",
     hour: HOURS.find((h) => h === r.hour) ?? "",
     sky: typeof r.sky === "string" && r.sky in WEATHERS ? (r.sky as Weather) : "",

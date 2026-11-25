@@ -70,6 +70,23 @@ export class Reminder {
   }
 }
 
+/** When quiet hours end if `at` falls inside them, else 0. They may run past midnight; the same hour twice is no quiet at all. */
+export const quietEnd = (at: number, from: number, to: number) => {
+  const d = new Date(at), h = d.getHours() + d.getMinutes() / 60
+  if (from === to || !(from < to ? h >= from && h < to : h >= from || h < to)) return 0
+  const end = new Date(at)
+  end.setHours(to, 0, 0, 0)
+  if (end.getTime() <= at) end.setDate(end.getDate() + 1)
+  return end.getTime()
+}
+
+/** A break that comes due in quiet hours waits for their end. Returns that end, or 0 when the break may go ahead. */
+export const holdQuiet = (r: Reminder, now: number, p: { quiet: boolean; quietFrom: number; quietTo: number }) => {
+  const end = p.quiet ? quietEnd(now, p.quietFrom, p.quietTo) : 0
+  if (end) r.snooze(now, end - now)
+  return end
+}
+
 const SNOOZE = 5 * 60_000
 const HOUR = 3_600_000
 /** How long "Skip 2h" on a break keeps the reminders away. */
@@ -95,9 +112,10 @@ const clock = (at: number, now: number) => {
 }
 
 /** What the main screen and the menu say about the next break. */
-export const nextLine = (s: { next: number | null; paused: number; every: number }, now: number) => {
+export const nextLine = (s: { next: number | null; paused: number; quiet: number; every: number }, now: number) => {
   if (!s.every) return "No reminders"
   if (s.paused) return s.paused - now > 8_760 * HOUR ? "Paused" : `Paused until ${clock(s.paused, now)}`
+  if (s.quiet) return `Quiet until ${clock(s.quiet, now)}`
   if (s.next === null) return "On a break"
   return `Next break in ${Math.max(1, Math.ceil((s.next - now) / 60_000))} min`
 }

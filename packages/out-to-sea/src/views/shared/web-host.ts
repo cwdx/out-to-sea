@@ -3,7 +3,7 @@ import type { BarRPC, Session, Status } from "../../rpc"
 import { skyFor } from "../../shared/fixtures"
 import { SEED } from "../../shared/sea"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type City, type Prefs } from "../../shared/prefs"
-import { pauseFor, Reminder, snoozeFor } from "../../shared/reminder"
+import { holdQuiet, pauseFor, quietEnd, Reminder, snoozeFor } from "../../shared/reminder"
 import type { Sky } from "../../shared/sky"
 import { cityNamed, cityOfZone, placeNameAt, readWeather, skyOf, type Conditions } from "../../shared/weather"
 import { router } from "../router"
@@ -59,7 +59,7 @@ const create = () => {
   }
   const liveSky = (): Sky => ({ ...skyOf(Date.now(), stored.value.city, stored.value.weather ? weather : null), at: Date.now() })
   const skyNow = (): Sky => skyFor(stored.value, liveSky())
-  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
+  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, next: reminder.nextBreakAt, quiet: stored.value.quiet ? quietEnd(Date.now(), stored.value.quietFrom, stored.value.quietTo) : 0, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
   const push = () => {
     const s = status()
     for (const w of watchers) w(s)
@@ -126,7 +126,7 @@ const create = () => {
     const now = Date.now()
     if (pausedUntil && now >= pausedUntil) pausedUntil = 0
     const event = reminder.tick(now)
-    if (event === "start") openBreak()
+    if (event === "start" && !holdQuiet(reminder, now, stored.value)) openBreak()
     // after a sleep the reminder has begun a fresh interval; a break still showing just closes
     if (event === "reset" && router.currentRoute.value.name === "break") {
       uncounted = true

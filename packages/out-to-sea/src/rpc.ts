@@ -19,7 +19,7 @@ export type Session = {
   shot: string
 }
 
-export type Status = { version: string; /** what the Mac's updater is doing, for the settings to show; empty when idle */ update: string; theme: Prefs["theme"]; windowed: boolean; clock: boolean; next: number | null; /** when the pause ends, or 0 */ paused: number; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
+export type Status = { version: string; /** what the Mac's updater is doing, for the settings to show; empty when idle */ update: string; theme: Prefs["theme"]; windowed: boolean; clock: boolean; next: number | null; /** when the pause ends, or 0 */ paused: number; /** when quiet hours end, or 0 outside them */ quiet: number; every: number; look: number; sound: boolean; volume: number; sky: Sky; /** the sky outside, before any hour, weather or temperature chosen to keep */ live: Sky; extra: string[] }
 
 export type BarRPC = {
   bun: RPCSchema<{

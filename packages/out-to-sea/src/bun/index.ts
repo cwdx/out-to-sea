@@ -10,7 +10,7 @@ import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../share
 import type { Sky } from "../shared/sky"
 import { anchorBelow } from "./anchor"
 import { FLOATING, overFullScreenApps, SCREEN, windowLevel } from "./level"
-import { pauseFor, Reminder, snoozeFor } from "../shared/reminder"
+import { holdQuiet, pauseFor, quietEnd, Reminder, snoozeFor } from "../shared/reminder"
 import { loadPrefs, savePrefs, type Stored } from "./store"
 import { cityNamed, type Conditions } from "../shared/weather"
 import { cityOfZone, getWeather, skyOf } from "./weather"
@@ -69,7 +69,7 @@ const readExtra = async () => {
   }
 }
 
-const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, clock: prefs.clock, next: reminder.nextBreakAt, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
+const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, clock: prefs.clock, next: reminder.nextBreakAt, quiet: prefs.quiet ? quietEnd(Date.now(), prefs.quietFrom, prefs.quietTo) : 0, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
 
 const setLogin = async (on: boolean) => {
   const app = process.execPath.split(".app/")[0] + ".app"
@@ -361,7 +361,7 @@ setInterval(() => {
   const now = Date.now()
   if (pausedUntil && now >= pausedUntil) pausedUntil = 0
   const event = reminder.tick(now)
-  if (event === "start") void openBreak()
+  if (event === "start" && !holdQuiet(reminder, now, prefs)) void openBreak()
   // after a long sleep the reminder has already started a fresh interval; a break still showing just closes
   if (event === "reset") {
     uncounted = true

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { Reminder, snoozeFor } from "../src/shared/reminder"
+import { holdQuiet, quietEnd, Reminder, snoozeFor } from "../src/shared/reminder"
 
 test("one break at a time; the next counts from the end of this one", () => {
   const r = new Reminder(0, 20_000)
@@ -71,4 +71,24 @@ test("an invalid interval keeps the deadline", () => {
   const r = new Reminder(0)
   expect(() => r.setInterval(600, Number.NaN)).toThrow(RangeError)
   expect(r.nextBreakAt).toBe(1_200_000)
+})
+
+test("quiet hours run past midnight and end at the next 'to' hour", () => {
+  const at = (h: number, d = 10) => new Date(2026, 10, d, h, 30).getTime()
+  expect(quietEnd(at(23), 22, 7)).toBe(new Date(2026, 10, 11, 7).getTime())
+  expect(quietEnd(at(3), 22, 7)).toBe(new Date(2026, 10, 10, 7).getTime())
+  expect(quietEnd(at(12), 22, 7)).toBe(0)
+  expect(quietEnd(at(7), 22, 7)).toBe(0)
+  expect(quietEnd(at(23), 9, 9)).toBe(0)
+  expect(quietEnd(at(10), 9, 17)).toBe(new Date(2026, 10, 10, 17).getTime())
+})
+
+test("a break due in quiet hours waits for their end, and not otherwise", () => {
+  const r = new Reminder(0, 20_000)
+  const night = new Date(2026, 10, 10, 23).getTime()
+  r.tick(night)
+  expect(holdQuiet(r, night, { quiet: false, quietFrom: 22, quietTo: 7 })).toBe(0)
+  const end = holdQuiet(r, night, { quiet: true, quietFrom: 22, quietTo: 7 })
+  expect(end).toBe(new Date(2026, 10, 11, 7).getTime())
+  expect(r.nextBreakAt).toBe(end)
 })

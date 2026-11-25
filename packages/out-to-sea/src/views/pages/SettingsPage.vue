@@ -41,6 +41,7 @@ const UNIT = [{ value: "auto", label: `Automatic (°${unitOf().toUpperCase()})` 
 
 const EVERY = [0, 10, 15, 20, 30, 45, 60], LOOK = [10, 20, 30, 45, 60]
 const START = [{ value: "look", label: "Looking away" }, { value: "breathe", label: "Breathing" }] as const
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => ({ value: h, label: new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" }) }))
 const options = (list: number[], current: number) => (list.includes(current) ? list : [...list, current].sort((a, b) => a - b))
 
 // the host has already stored what these change; the copy here follows, or the next save would undo it
@@ -87,6 +88,17 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
         <div class="row"><span>Start with</span>
           <PopupSelect v-model="prefs.start" label="Start with" :options="START" />
         </div>
+        <label class="row">Quiet hours
+          <Switch v-model="prefs.quiet" class="switch"><SwitchThumb class="thumb" /></Switch>
+        </label>
+        <template v-if="prefs.quiet">
+          <div class="row"><span>From</span>
+            <PopupSelect v-model="prefs.quietFrom" label="Quiet from" :options="HOUR_OPTIONS" />
+          </div>
+          <div class="row"><span>Until</span>
+            <PopupSelect v-model="prefs.quietTo" label="Quiet until" :options="HOUR_OPTIONS" />
+          </div>
+        </template>
       </section>
 
       <section>
