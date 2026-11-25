@@ -4,6 +4,7 @@ import { useRoute } from "vue-router"
 import { computed, getCurrentScope, ref, shallowRef, useTemplateRef } from "vue"
 import type { Session } from "../../rpc"
 import { phaseAt, type Phase } from "../../shared/clock"
+import { SKIP } from "../../shared/reminder"
 import { inkOf } from "../../shared/sea"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
@@ -58,9 +59,14 @@ const finish = () => {
   ocean.value?.fade()
   enter("leaving", LEAVE)
 }
-const snoozing = ref(false)
+// what the break does once it has faded out: nothing special, snooze, or skip a while
+const leaveBy = ref<"snooze" | "skip">()
 const snooze = () => {
-  snoozing.value = true
+  leaveBy.value = "snooze"
+  finish()
+}
+const skipLong = () => {
+  leaveBy.value = "skip"
   finish()
 }
 const settings = () => {
@@ -84,7 +90,8 @@ useIntervalFn(() => {
     enter("choice", CHOICE)
   } else if (stage.value === "choice" && t >= length.value) finish()
   else if (stage.value === "leaving" && t >= LEAVE) {
-    if (snoozing.value) send.snooze({})
+    if (leaveBy.value === "snooze") send.snooze({})
+    else if (leaveBy.value === "skip") send.pause({ for: SKIP })
     else send.finish({})
   }
 }, 100)
@@ -136,12 +143,12 @@ void ask.session().then((s) => {
       <Transition mode="out-in" :css="false" appear @enter="rise.enter" @leave="rise.leave">
         <section v-if="stage === 'gaze'" key="gaze" class="cue wash gaze" :class="{ settled: elapsed > CUE }">
           <h1 class="swell">Look into the distance.</h1>
-          <WordChoices class="durations" quiet :choices="[{ label: 'Snooze', aria: 'Snooze for 5 minutes', act: snooze }, { label: 'Skip', act: finish }]" />
+          <WordChoices class="durations" quiet :choices="[{ label: 'Snooze', aria: 'Snooze for 5 minutes', act: snooze }, { label: 'Skip', act: finish }, { label: 'Skip 2h', aria: 'Skip for 2 hours', act: skipLong }]" />
         </section>
 
         <section v-else-if="stage === 'choice'" key="choice" class="cue wash choice">
           <h1 class="swell">Stay a little longer?</h1>
-          <WordChoices class="durations" :choices="[{ label: 'Breathe for 1 minute', act: () => breathe(1) }, { label: '5 minutes', aria: 'Breathe for 5 minutes', act: () => breathe(5) }, { label: 'Snooze', aria: 'Snooze for 5 minutes', act: snooze }, { label: 'Skip', act: finish }]" />
+          <WordChoices class="durations" :choices="[{ label: 'Breathe 1 min', aria: 'Breathe for 1 minute', act: () => breathe(1) }, { label: '5 min', aria: 'Breathe for 5 minutes', act: () => breathe(5) }, { label: 'Done', act: finish }]" />
         </section>
 
         <section v-else-if="stage === 'breathing' && phase" key="breathing" class="cue wash breath">
@@ -159,7 +166,7 @@ void ask.session().then((s) => {
           <button v-if="stage === 'breathing'" type="button" class="word" aria-label="Add one minute" @click="extend">+1 min<WaterLine /></button>
         </div>
         <div class="end">
-          <button v-if="stage !== 'leaving'" type="button" class="word" @click="finish">Done<WaterLine /></button>
+          <button v-if="stage === 'gaze' || stage === 'breathing'" type="button" class="word" @click="finish">Done<WaterLine /></button>
           <SoundToggle v-if="ocean" :on="ocean.on.value" @toggle="ocean.toggle" />
           <SavePicture :picture="() => sea?.picture()" />
           <button type="button" class="tool" aria-label="Settings" :disabled="stage === 'leaving'" @click="settings"><SettingsIcon /></button>
@@ -198,7 +205,8 @@ h1 { font: 400 clamp(30px, 2.9vw, 52px) / 1.12 var(--serif); letter-spacing: -0.
 
 .gaze .word { opacity: 0.85; transition: opacity var(--dur-slow) var(--ease) 0.6s; animation: arrive var(--dur-slow) var(--ease) 0.9s backwards; }
 .gaze.settled .word { opacity: 0.7; }
-.gaze .word:is(:hover, :focus-visible) { opacity: 1; transition-delay: 0s; }
+.gaze.settled:is(:hover, :focus-within) { opacity: 1; }
+.gaze:is(:hover, :focus-within) .word { opacity: 1; transition-delay: 0s; }
 
 footer { color: var(--ivory); position: absolute; left: var(--foot-left); right: var(--foot-right); bottom: var(--foot-bottom); display: flex; flex-wrap: wrap; gap: 1em 1.6em; align-items: center; justify-content: flex-end; font: 400 clamp(17px, 1.5vw, 26px) / 1 var(--serif); }
 .time { display: flex; align-items: center; gap: 1.2em; margin-right: auto; font-variant-numeric: tabular-nums; }

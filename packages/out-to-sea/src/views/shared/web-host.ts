@@ -117,6 +117,7 @@ const create = () => {
     push()
   }
   const pause = ({ for: ms }: { for: number }) => {
+    if (reminder.running) finish()
     pausedUntil = pauseFor(reminder, Date.now(), ms, interval())
     push()
   }

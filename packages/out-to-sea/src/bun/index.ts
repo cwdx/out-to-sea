@@ -160,6 +160,10 @@ const openBreak = async (start = prefs.start) => {
     const rpc = bridge({
       finish: finishBreak,
       snooze: snoozeBreak,
+      pause: (p) => {
+        finishBreak()
+        pause(p)
+      },
       sound: ({ on }) => void apply({ ...prefs, sound: on }),
       settings: () => openSettings("break"),
       full: ({ on }) => {

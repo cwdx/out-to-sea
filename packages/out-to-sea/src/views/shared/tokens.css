@@ -58,3 +58,4 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .swell { animation: swell 10.5s ease-in-out infinite; }
 @keyframes swell { 50% { opacity: 0.8; } }
 @media (prefers-reduced-motion: reduce) { .swell { animation: none; } }
+.wash:is(:hover, :focus-within) .swell { animation: none; }
