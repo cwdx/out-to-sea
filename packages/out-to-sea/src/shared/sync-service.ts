@@ -94,6 +94,7 @@ export const syncService = ({ store, prefs, apply, synced, device, base, now = D
     }),
     open: async () => {
       await ready()
+      synced?.()
       await run()
     },
     focus: () => (saved ? run() : undefined),

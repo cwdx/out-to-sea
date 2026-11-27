@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, onMounted, useTemplateRef } from "vue"
 import { HOURS, TEMPS, WEATHERS, skyFor, type Choice, type Hour, type Temp, type Weather } from "../../shared/fixtures"
 import { degrees } from "../../shared/prefs"
 import { paletteOf } from "../../shared/sea"
@@ -22,12 +22,24 @@ const rows = computed(() => [
   { name: "Weather", choices: (["", ...Object.keys(WEATHERS)] as (Weather | "")[]).map((sky) => ({ ...paint({ ...now.value, sky }), on: props.sky === sky, label: sky ? WEATHERS[sky].condition : "Live" })) },
   { name: "Temperature", choices: (["", ...Object.keys(TEMPS)] as (Temp | "")[]).map((temp) => ({ ...paint({ ...now.value, temp }), on: props.temp === temp, label: temp ? title(temp) : "Live" })) },
 ])
+const picker = useTemplateRef<HTMLElement>("picker")
+onMounted(() => picker.value?.querySelectorAll<HTMLElement>("[aria-checked=true]").forEach((on) => {
+  const set = on.parentElement
+  set?.scrollTo({ left: on.offsetLeft - set.offsetLeft - (set.clientWidth - on.offsetWidth) / 2 })
+}))
+const step = ({ currentTarget }: KeyboardEvent, by: number) => {
+  if (!(currentTarget instanceof HTMLElement)) return
+  const radios = Array.from(currentTarget.querySelectorAll<HTMLElement>("[role=radio]"))
+  const next = radios[(radios.findIndex((r) => r === document.activeElement) + by + radios.length) % radios.length]
+  next?.focus()
+  next?.click()
+}
 </script>
 
 <template>
-  <div class="picker">
-    <div v-for="row in rows" :key="row.name" class="row" role="radiogroup" :aria-label="row.name">
-      <button v-for="c in row.choices" :key="c.label" type="button" role="radio" :aria-checked="c.on" class="choice" @click="emit('choose', c.choice)">
+  <div ref="picker" class="picker">
+    <div v-for="row in rows" :key="row.name" class="set" role="radiogroup" :aria-label="row.name" @keydown.right.down.prevent="step($event, 1)" @keydown.left.up.prevent="step($event, -1)">
+      <button v-for="c in row.choices" :key="c.label" type="button" role="radio" :aria-checked="c.on" :tabindex="c.on ? 0 : -1" class="choice" @click="emit('choose', c.choice)">
         <i aria-hidden="true" :style="{ background: c.background }">
           <WeatherIcon v-if="row.name === 'Weather'" :condition="c.sky.condition" :day="c.day" />
           <template v-else-if="row.name === 'Temperature'">{{ degrees(c.sky.temp, unit) }}</template>
@@ -39,7 +51,7 @@ const rows = computed(() => [
 
 <style scoped>
 .picker { display: grid; gap: 16px; font: 400 13px / 1 var(--sans); }
-.row { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding: 6px 2px; margin: -6px -2px; }
+.set { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding: 6px 2px; margin: -6px -2px; }
 .choice { display: grid; justify-items: center; gap: 8px; flex: none; min-width: 58px; scroll-snap-align: start; opacity: 0.72; transition: opacity 0.2s; white-space: nowrap; }
 .choice:is(:hover, :focus-visible, [aria-checked="true"]) { opacity: 1; }
 .choice i { display: grid; place-items: center; width: 58px; height: 40px; border-radius: 9px; color: var(--ivory); font-style: normal; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgb(0 0 0 / 0.35); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent); transition: box-shadow 0.2s, translate 0.2s; }

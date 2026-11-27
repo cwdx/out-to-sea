@@ -112,6 +112,7 @@ export const oceanSynth = () => {
   const set = (p: AudioParam, v: number, tc: number) => p.setTargetAtTime(v, ctx.currentTime, tc)
   return {
     wake: () => (ctx.state === "suspended" ? ctx.resume() : Promise.resolve()),
+    hold: () => (ctx.state === "running" ? ctx.suspend() : Promise.resolve()),
     mute: (on: boolean) => {
       muted = on
       set(master.gain, on ? 0 : loud, 0.05)
@@ -203,7 +204,7 @@ export const oceanSynth = () => {
       }
     },
     fadeOut: () => set(master.gain, 0, 0.25),
-    close: () => void ctx.close(),
+    close: () => void (ctx.state === "closed" || ctx.close()),
   }
 }
 export type OceanSynth = ReturnType<typeof oceanSynth>

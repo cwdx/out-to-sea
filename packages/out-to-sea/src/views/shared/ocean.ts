@@ -2,13 +2,14 @@ import { tryOnScopeDispose, useEventListener, useIntervalFn, useWindowFocus } fr
 import { computed, ref, watch } from "vue"
 import type { Phase } from "../../shared/clock"
 import type { Scene } from "../../shared/sky"
+import { appVisible } from "./active"
 import { inApp } from "./bridge"
 import { oceanSynth, type OceanSynth } from "./synth"
 
 /** `focus`: heard only while its window has the focus; a browser tab always, a Mac break never, as its windows are not activated. */
 export const useOcean = (initial: boolean, onChange?: (on: boolean) => void, volume = 0.4, focus = !inApp) => {
   const on = ref(initial), focused = useWindowFocus()
-  const heard = computed(() => on.value && (!focus || focused.value))
+  const heard = computed(() => on.value && appVisible.value && (!focus || focused.value))
   let synth: OceanSynth | undefined
   try {
     synth = oceanSynth()
@@ -20,8 +21,17 @@ export const useOcean = (initial: boolean, onChange?: (on: boolean) => void, vol
   wake()
   useEventListener("pointerdown", wake, { once: true })
   useEventListener("keydown", wake, { once: true })
-  watch(heard, (h) => synth?.mute(!h))
-  tryOnScopeDispose(() => synth?.close())
+  let idle: ReturnType<typeof setTimeout> | undefined
+  watch(heard, (h) => {
+    synth?.mute(!h)
+    clearTimeout(idle)
+    if (h) wake()
+    else idle = setTimeout(() => void synth?.hold(), 400)
+  })
+  tryOnScopeDispose(() => {
+    clearTimeout(idle)
+    synth?.close()
+  })
   return {
     on,
     toggle: () => {

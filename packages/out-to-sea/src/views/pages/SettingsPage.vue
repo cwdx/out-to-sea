@@ -18,6 +18,7 @@ import { invite, router } from "../router"
 import PopupSelect from "../shared/PopupSelect.vue"
 import SeaCanvas from "../shared/SeaCanvas.vue"
 import SettingsTabs from "../shared/SettingsTabs.vue"
+import SkyPicker from "../shared/SkyPicker.vue"
 import SyncRows from "../shared/SyncRows.vue"
 import { useSeaSound } from "../shared/ocean"
 import WordChoices, { mainChoices } from "../shared/WordChoices.vue"
@@ -89,7 +90,7 @@ watch(() => status.value?.sync.at, async () => {
   if (JSON.stringify(p) !== JSON.stringify(prefs.value)) prefs.value = p
 })
 
-const TABS = computed(() => [{ id: "breaks", label: "Breaks" }, { id: "breathing", label: "Breathing" }, { id: "sky", label: "Sky" }, ...(syncHere ? [{ id: "sync", label: "Sync" }] : []), { id: "about", label: "About" }])
+const TABS = computed(() => [{ id: "breaks", label: "Breaks" }, { id: "breathing", label: "Breathing" }, { id: "sky", label: "Sky" }, ...(syncHere ? [{ id: "sync", label: "Sync", apart: true }] : []), { id: "about", label: "About", apart: !syncHere }])
 const remembered = useLocalStorage("out-to-sea.settings", "breaks")
 if (joining.value) remembered.value = "sync"
 const tab = computed(() => (TABS.value.some((t) => t.id === remembered.value) ? remembered.value : "breaks"))
@@ -139,7 +140,7 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.
       <component :is="inApp ? 'button' : RouterLink" class="home-link" :type="inApp ? 'button' : undefined" :to="inApp ? undefined : { name: 'home' }" aria-label="Main screen" @click="inApp && send.home({})"><BrandMark :size="22" /></component>
       <FullscreenToggle v-if="inApp" class="open-home" :full="false" :act="() => send.home({})" />
       <SettingsTabs :tabs="TABS" :active="tab" />
-      <WordChoices class="go" :choices="mainChoices(send, false)" />
+      <WordChoices class="go wash" quiet :choices="mainChoices(send, false)" />
     </aside>
 
     <form ref="sheet" class="sheet" @submit.prevent>
@@ -171,6 +172,10 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.
       </TabsPanel>
 
       <TabsPanel value="sky">
+        <SkyPicker v-if="status" class="skies" :hour="prefs.hour" :sky="prefs.sky" :temp="prefs.temp" :unit="prefs.unit" :live="status.live" @choose="(choice) => Object.assign(prefs, choice)" />
+        <div class="row"><span>Appearance</span>
+          <PopupSelect v-model="prefs.theme" label="Appearance" :options="THEME" />
+        </div>
         <div class="row">Sound
           <span class="sound">
             <Slider :value="prefs.volume" :min="5" :max="100" :step="5" :disabled="!prefs.sound" class="slider" @value-change="(v: number | number[]) => (prefs.volume = Number(v))">
@@ -190,9 +195,6 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.
         </label>
         <div v-if="prefs.weather" class="row"><span>Temperature in</span>
           <PopupSelect v-model="prefs.unit" label="Temperature in" :options="UNIT" />
-        </div>
-        <div class="row"><span>Appearance</span>
-          <PopupSelect v-model="prefs.theme" label="Appearance" :options="THEME" />
         </div>
         <label class="row">Clock on the main screen
           <Switch v-model="prefs.clock" class="switch"><SwitchThumb class="thumb" /></Switch>
@@ -245,23 +247,32 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.
 <style>
 .window { display: grid; grid-template-columns: 35% 1fr; grid-template-rows: minmax(0, 1fr); height: 100dvh; overflow: hidden; background: var(--paper); color: var(--sheet-ink); font: 400 14px/1.35 var(--sans); }
 .window {
-  .preview { position: relative; overflow: hidden; height: 100%; }
+  /* clipped, not hidden: a wash reaches past the edge, and revealing a tab must not scroll the sea to it */
+  .preview { position: relative; overflow: clip; height: 100%; }
   /* the mark and full screen share one top line, and the mark and the words one left edge, 24px in */
   .preview .home-link { position: absolute; top: max(24px, env(safe-area-inset-top)); left: max(24px, env(safe-area-inset-left)); height: 44px; display: flex; align-items: center; color: inherit; text-decoration: none; }
   .preview .open-home { position: absolute; top: 24px; right: 13px; margin: 0; }
-  .go { position: absolute; left: max(24px, env(safe-area-inset-left)); right: 24px; bottom: max(30px, env(safe-area-inset-bottom)); color: var(--ivory); display: flex; flex-wrap: wrap; gap: 0.4em 1.6em; font: 400 20px var(--serif); }
+  .go { position: absolute; left: max(24px, env(safe-area-inset-left)); right: 24px; bottom: max(30px, env(safe-area-inset-bottom)); color: var(--ivory); display: flex; flex-wrap: wrap; gap: 0.2em 1.5em; font: 400 17px / 1.2 var(--serif); --wash: var(--wash-for-light-ink); text-shadow: 0 0 4px var(--wash), 0 1px 14px var(--wash); }
 
-  .sheet { padding: 20px calc(36px + env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 44px; display: flex; flex-direction: column; gap: 6px; height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  /* the first row sits on the mark's line */
+  .sheet { padding: 26px calc(36px + env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 44px; display: flex; flex-direction: column; gap: 6px; height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
   .sheet::-webkit-scrollbar { display: none; }
   &.app .sheet { padding: 12px 24px 10px 28px; }
+  .sheet > * { max-width: 40rem; --rise: 6px; animation: rise 0.35s var(--ease) both; }
+  /* a section that rises would count as overflow when the Mac window is fitted to the sheet */
+  &.app .sheet > * { --rise: 0px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 40px; font-size: 15px; }
-  .row + .row { border-top: 1px solid color-mix(in srgb, var(--paper-line) 70%, transparent); }
+  .row + .row, .skies + .row, .row + .credits, .credits p + p { border-top: 1px solid color-mix(in srgb, var(--paper-line) 70%, transparent); }
   .stack { display: grid; gap: 1px; }
   small { color: var(--muted); font-size: 12px; }
   .field { font: inherit; width: 100%; padding: 6px 9px; border-radius: 7px; border: 1px solid var(--paper-line); background: var(--field); color: inherit; }
   .field { box-sizing: border-box; width: 220px; max-width: 55%; padding-left: 14px; text-align: left; }
   .field:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
   .field:disabled { opacity: 0.5; }
+
+  .skies { padding: 6px 0 20px; }
+  .skies .choice[aria-checked="true"] i { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--teal); }
+  .skies .choice:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 9px; }
 
   .sound { display: flex; align-items: center; gap: 18px; flex: 1; justify-content: flex-end; }
   .slider { flex: none; width: min(200px, 55%); transition: opacity 0.2s; }
@@ -271,14 +282,27 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.
   .slider .range { height: 100%; border-radius: 2px; background: var(--teal); }
   .slider .knob { width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
   .slider .knob:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
-  .credits { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 18px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
+  .credits { color: var(--muted); font-size: 13px; }
+  .credits p { padding: 11px 0; }
   .credits a { color: var(--teal); }
   .update { display: flex; align-items: center; gap: 18px; }
-  .link { color: var(--teal); font-size: 13px; }
+  .link { color: var(--teal); font-size: 13px; justify-content: flex-end; }
   .link:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 3px; }
 }
+/* six across fits every set: six hours, twelve weathers in two rows, six temperatures */
+@media (min-width: 40.01rem) {
+  .window .skies .set { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 10px; overflow: visible; }
+  .window .skies .choice { min-width: 0; grid-template-columns: minmax(0, 1fr); font-size: 12px; }
+  .window .skies .choice i { justify-self: stretch; width: auto; height: 44px; }
+}
 @media (max-width: 40rem) {
-  .window .go { bottom: calc(52px + env(safe-area-inset-bottom)); }
+  /* on a phone everything shares one edge, 20px in; the words to act on take the mark's line, so its name stays folded */
+  .window .preview .home-link { left: max(20px, env(safe-area-inset-left)); }
+  .window .preview .home-link .name { display: none; }
+  .window .go { top: max(24px, env(safe-area-inset-top)); bottom: auto; left: auto; right: max(20px, env(safe-area-inset-right)); flex-wrap: nowrap; color: inherit; --wash: inherit; }
+  /* the sea deepens under the section words, which keeps them readable on pale water */
+  .window .preview::after { content: ""; position: absolute; inset: auto 0 0; height: 96px; pointer-events: none; background: linear-gradient(transparent, var(--wash-for-light-ink) 60%); }
+  .window .skies .set { margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent); }
   .window { grid-template-columns: 1fr; grid-template-rows: 30dvh minmax(0, 1fr); }
   .window .preview, .window .sheet { height: auto; }
   .window .phases { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -292,5 +316,6 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.
   .window :is(.field, .popup-trigger, .group) { min-height: 44px; }
   .window .step { padding-inline: 5px; }
   .window :is(.credits a, .link) { display: inline-flex; align-items: center; min-height: 44px; }
+  .window .credits p { padding-block: 2px; }
 }
 </style>

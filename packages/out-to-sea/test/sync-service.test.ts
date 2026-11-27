@@ -237,3 +237,14 @@ test("a device that leaves and rejoins keeps its entry in the list", async () =>
   expect(b.store()!.id).toBe(id)
   expect(a.service.state().devices).toHaveLength(2)
 })
+
+test("after a reload sync shows on at once, not after the first sync has finished", async () => {
+  const hung: Relay = { publish: () => new Promise(() => {}), query: () => new Promise(() => {}) }
+  const a = device([fake()])
+  await a.service.on()
+  const b = device([hung], { n: 0 }, a.store())
+  void b.service.open()
+  await new Promise((r) => setTimeout(r, 20))
+  expect(b.service.state().on).toBe(true)
+  expect(b.syncs.n).toBeGreaterThan(0)
+})
