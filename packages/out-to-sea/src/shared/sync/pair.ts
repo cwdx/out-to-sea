@@ -2,7 +2,7 @@ import { scryptAsync } from "@noble/hashes/scrypt.js"
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
 import { decrypt, encrypt } from "./crypto"
-import { KIND, sign, verify } from "./nostr"
+import { KIND, pubkeyOf, sign, verify } from "./nostr"
 import type { Relay } from "./relay"
 
 export const PAIR_TTL = 600
@@ -37,7 +37,7 @@ export const offer = async (relays: Relay[], secret: string, now = Date.now()) =
 export const claim = async (relays: Relay[], words: string, now = Date.now()) => {
   const { d, key, signer } = await stretch(words)
   const at = Math.floor(now / 1000)
-  const found = (await Promise.all(relays.map((r) => r.query({ "kinds": [KIND], "#d": [d] }).catch(() => [])))).flat().filter((e) => verify(e) && at - e.created_at <= PAIR_TTL)
+  const found = (await Promise.all(relays.map((r) => r.query({ "kinds": [KIND], "authors": [pubkeyOf(signer)], "#d": [d] }).catch(() => [])))).flat().filter((e) => e.pubkey === pubkeyOf(signer) && e.tags.some((t) => t[0] === "d" && t[1] === d) && verify(e) && at - e.created_at <= PAIR_TTL)
   for (const e of found.sort((a, b) => b.created_at - a.created_at)) {
     const secret = await decrypt(key, e.content).catch(() => "")
     if (!SECRET.test(secret)) continue

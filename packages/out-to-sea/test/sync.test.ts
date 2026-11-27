@@ -7,7 +7,7 @@ import { contentKey, decrypt, encrypt } from "../src/shared/sync/crypto"
 import { sync } from "../src/shared/sync/engine"
 import { idOf, KIND, newSecret, pubkeyOf, sign, verify, type Filter, type NostrEvent } from "../src/shared/sync/nostr"
 import { claim, linkOf, offer, PAIR_TTL, secretOfLink } from "../src/shared/sync/pair"
-import type { Relay } from "../src/shared/sync/relay"
+import { wsRelay, type Relay } from "../src/shared/sync/relay"
 
 /** In-memory relay with NIP-33 replacement; `drop` makes it acknowledge writes it never keeps. */
 const fake = (drop = false): Relay & { events: NostrEvent[] } => {
@@ -22,7 +22,6 @@ const fake = (drop = false): Relay & { events: NostrEvent[] } => {
       else if (events[i]!.created_at <= e.created_at) events[i] = e
     },
     query: async (f: Filter) => events.filter((e) => f.authors?.includes(e.pubkey) !== false && e.kind === f.kinds?.[0] && e.tags.some((t) => t[0] === "d" && f["#d"]?.includes(t[1]!))),
-    subscribe: () => () => {},
   }
 }
 
@@ -125,4 +124,46 @@ test("an expired or wrong code gives nothing", async () => {
 test("the link carries the secret in the fragment", () => {
   expect(secretOfLink(linkOf("https://sea.cwdx.md/", secret))).toBe(secret)
   expect(secretOfLink("https://sea.cwdx.md/#nope")).toBeUndefined()
+})
+
+test("a changed field is stamped after the value it replaces even when the clock is behind", () => {
+  const t = track({ every: { v: DEFAULTS.every, t: 1000 } }, { ...DEFAULTS, every: DEFAULTS.every + 1 }, 500)
+  expect(t.every?.t).toBe(1001)
+})
+
+test("a replayed pairing event signed by another key is not trusted", async () => {
+  const relay = fake()
+  const words = await offer([relay], secret, 1_000_000)
+  const replay = sign(newSecret(), { created_at: relay.events[0]!.created_at, kind: KIND, tags: relay.events[0]!.tags, content: relay.events[0]!.content })
+  const seen: Filter[] = []
+  const hostile: Relay = { publish: async () => {}, query: async (f) => (seen.push(f), [replay]) }
+  expect(await claim([hostile], words, 1_000_000)).toBeUndefined()
+  expect(seen[0]?.authors).toHaveLength(1)
+})
+
+test("a relay that is down is not written to", async () => {
+  const good = fake()
+  let writes = 0
+  const down: Relay = { publish: async () => void writes++, query: async () => { throw new Error("down") } }
+  await sync([good], secret, doc(100), 1000)
+  await sync([down, good], secret, doc(100), 2000)
+  expect(writes).toBe(0)
+})
+
+test("a relay answering garbage frames still answers the query, one event at most", async () => {
+  const real = globalThis.WebSocket
+  const sent: string[] = []
+  globalThis.WebSocket = class {
+    onopen?: () => void
+    onmessage?: (m: { data: string }) => void
+    constructor() { queueMicrotask(() => { this.onopen?.() }) }
+    send(f: string) { sent.push(f); this.onmessage?.({ data: "not json" }); this.onmessage?.({ data: "[\"EOSE\",\"q\"]" }) }
+    close() {}
+  } as unknown as typeof WebSocket
+  try {
+    expect(await wsRelay("wss://x").query({ kinds: [KIND] })).toEqual([])
+    expect(JSON.parse(sent[0]!)[2].limit).toBe(1)
+  } finally {
+    globalThis.WebSocket = real
+  }
 })

@@ -1,16 +1,19 @@
 addEventListener("fetch", (e) => {
   const { request } = e
-  if (request.method !== "GET" || new URL(request.url).origin !== location.origin) return
+  const url = new URL(request.url)
+  if (request.method !== "GET" || url.origin !== location.origin) return
+  const hashed = url.pathname.includes("/assets/")
   e.respondWith(
     caches.open("sea").then(async (cache) => {
       const hit = await cache.match(request)
-      const net = fetch(request).then((res) => {
-        if (res.ok) cache.put(request, res.clone())
+      if (hashed && hit) return hit
+      try {
+        const res = await fetch(request)
+        if (res.status === 200) await cache.put(request, res.clone()).catch(() => undefined)
         return res
-      })
-      if (request.mode === "navigate") return net.catch(() => hit ?? Response.error())
-      net.catch(() => undefined)
-      return hit ?? net
+      } catch {
+        return hit ?? Response.error()
+      }
     }),
   )
 })

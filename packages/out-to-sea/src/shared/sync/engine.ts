@@ -22,12 +22,13 @@ const unpack = async (secret: string, e: NostrEvent) => {
 export const sync = async (relays: Relay[], secret: string, local: Doc, now = Date.now()) => {
   const filter = { "kinds": [KIND], "authors": [pubkeyOf(secret)], "#d": [D] }
   const perRelay = await Promise.all(relays.map(async (r) => {
-    const events = await r.query(filter).catch(() => [])
+    const events = await r.query(filter).catch(() => null)
+    if (!events) return null
     const valid = await Promise.all(events.map(async (e) => ({ at: e.created_at, doc: await unpack(secret, e) })))
     return valid.filter((v) => v.doc).sort((a, b) => b.at - a.at)[0]
   }))
   const merged = perRelay.reduce((acc, v) => (v?.doc ? merge(acc, v.doc) : acc), local)
-  if (perRelay.some((v) => !v?.doc || !equal(v.doc, merged))) {
+  if (perRelay.some((v) => v !== null && (!v?.doc || !equal(v.doc, merged)))) {
     const event = await pack(secret, merged, Math.max(Math.floor(now / 1000), ...perRelay.map((v) => (v?.at ?? 0) + 1)))
     await Promise.allSettled(relays.map((r) => r.publish(event)))
   }

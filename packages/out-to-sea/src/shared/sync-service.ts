@@ -2,7 +2,7 @@ import type { Prefs } from "./prefs"
 import type { Doc, Relay } from "./sync"
 
 export type SyncState = { on: boolean; at: number }
-export type SyncOffer = { words: string; link: string }
+export type SyncOffer = { link: string; words?: string }
 export type Saved = { secret: string; doc: Doc }
 
 /** Where a host keeps the device secret and the synced fields with their times, apart from Prefs. */
@@ -61,15 +61,18 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
 
   const run = () => (queue = queue.then(() => pull().catch(() => {}).finally(synced)))
 
-  const start = async (secret: string) => {
-    saved = { secret, doc: {} }
+  const start = async (secret: string, doc: Doc = {}) => {
+    saved = { secret, doc }
     await store.set(saved)
     await run()
   }
 
   const on = async () => {
     await ready()
-    if (!saved) await start((await lib()).newSecret())
+    if (!saved) {
+      const { newSecret, seed } = await lib()
+      await start(newSecret(), seed(prefs()))
+    }
   }
 
   return {
@@ -89,7 +92,10 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
       try {
         await on()
         const { offer, linkOf } = await lib()
-        return saved && { words: await offer(await live(), saved.secret, now()), link: linkOf(base, saved.secret) }
+        if (!saved) return
+        const { secret } = saved
+        const words = await offer(await live(), secret, now()).catch(() => undefined)
+        return { link: linkOf(base, secret), words }
       } catch {}
     },
     join: async (text: string) => {

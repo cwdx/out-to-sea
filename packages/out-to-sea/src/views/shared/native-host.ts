@@ -46,8 +46,10 @@ const create = () => {
 
   let queue: Promise<unknown> = Promise.resolve()
   let planned = ""
+  let breaking = false
   const replan = () => (queue = queue.then(async () => {
-    const list = plan(core, stored.value.notify)
+    if (breaking) return
+    const list = plan(core, stored.value.notify && !!stored.value.every && !core.state().paused)
     const key = JSON.stringify(list)
     if (key === planned) return
     planned = key
@@ -63,8 +65,6 @@ const create = () => {
       void Preferences.set({ key: KEY, value: JSON.stringify(stored.value) })
       return false
     }
-    // Android 12+ lets the user revoke exact alarms, so they are asked for with the first reminder
-    if (Capacitor.getPlatform() === "android" && (await LocalNotifications.checkExactNotificationSetting()).exact_alarm !== "granted") void LocalNotifications.changeExactNotificationSetting()
     return true
   }
 
@@ -113,12 +113,13 @@ const create = () => {
     open: (start = stored.value.start) => {
       current = undefined
       opening = start
+      breaking = true
       show("break")
       void LocalNotifications.removeAllDeliveredNotifications()
-      replan()
     },
     close: () => {
       current = undefined
+      breaking = false
       if (router.currentRoute.value.name === "break") show("home")
     },
     push,
@@ -188,6 +189,8 @@ const create = () => {
     },
     notify: async () => {
       const ok = await allowed()
+      // Android 12+ lets people revoke exact alarms; without them reminders are scheduled inexact, so this is asked once, here
+      if (ok && Capacitor.getPlatform() === "android" && (await LocalNotifications.checkExactNotificationSetting()).exact_alarm !== "granted") void LocalNotifications.changeExactNotificationSetting()
       apply({ ...stored.value, notify: ok })
       return ok
     },

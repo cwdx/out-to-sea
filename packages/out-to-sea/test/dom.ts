@@ -3,4 +3,4 @@ const storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: stri
 const win = Object.assign(new EventTarget(), { top: undefined as unknown, self: undefined as unknown, localStorage: storage })
 win.top = win.self = win
 // vueuse reads window and document once, when it loads, so the stubs come first; Storage is a class the stub is not
-Object.assign(globalThis, { Storage: Map, window: win, localStorage: storage, document: { createElement: () => ({}), hidden: false }, location: { origin: "https://sea.example", pathname: "/" } })
+Object.assign(globalThis, { Storage: Map, window: win, localStorage: storage, document: { createElement: () => ({}), hidden: false }, location: { origin: "https://sea.cwdx.md", host: "sea.cwdx.md", pathname: "/" } })

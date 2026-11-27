@@ -3,7 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js"
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js"
 
 export type NostrEvent = { id: string; pubkey: string; created_at: number; kind: number; tags: string[][]; content: string; sig: string }
-export type Filter = { "kinds"?: number[]; "authors"?: string[]; "#d"?: string[] }
+export type Filter = { "kinds"?: number[]; "authors"?: string[]; "#d"?: string[]; "limit"?: number }
 
 export const KIND = 30078
 

@@ -13,6 +13,9 @@ import { version } from "../../../package.json"
 type Messages = BarRPC["bun"]["messages"]
 export type Send = { [K in keyof Messages]: (p: Messages[K]) => void }
 
+// cwdx.md/sea shares an origin with the console, so a device secret never lives there
+export const webSync = location.host === "sea.cwdx.md"
+
 const HEARTBEAT = 5_000
 // a hidden tab's timers run about once a minute, so only a longer silence than that is a sleep
 const SLEEP_GAP = 150_000
@@ -90,8 +93,10 @@ const create = () => {
     base: location.origin + location.pathname,
   })
   const synced = <T>(work: Promise<T>) => work.finally(push)
-  void sync.open()
-  useEventListener(window, "focus", () => void sync.focus())
+  if (webSync) {
+    void sync.open()
+    useEventListener(window, "focus", () => void sync.focus())
+  }
 
   function apply(next: Prefs, fromSync = false) {
     const before = stored.value
@@ -141,7 +146,7 @@ const create = () => {
     finish: core.finish.bind(core),
     snooze: core.snooze.bind(core),
     sound: ({ on }) => apply({ ...stored.value, sound: on }),
-    syncOn: ({ on }) => void synced(on ? sync.on() : sync.off()),
+    syncOn: ({ on }) => void (webSync && synced(on ? sync.on() : sync.off())),
     save: apply,
     breakNow: ({ start }) => core.breakNow(start),
     pause: ({ for: ms }) => core.pause(ms),
@@ -163,8 +168,8 @@ const create = () => {
       session: async () => (current ??= { seed: SEED, sky: skyNow(), start: opening, look: stored.value.look, pattern: breathingOf(stored.value), sound: stored.value.sound, volume: stored.value.volume / 100, lead: true, windowed: false, shot: "" }),
       prefs: async () => stored.value,
       status: async () => status(),
-      syncOffer: async () => synced(sync.offer()),
-      syncJoin: async ({ text }: { text: string }) => synced(sync.join(text)),
+      syncOffer: async () => (webSync ? synced(sync.offer()) : undefined),
+      syncJoin: async ({ text }: { text: string }) => webSync && synced(sync.join(text)),
       place: async ({ name }: { name: string }) => {
         const city = await cityNamed(name)
         if (city) apply({ ...stored.value, city, locate: false })

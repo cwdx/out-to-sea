@@ -3,7 +3,7 @@ import { onKeyStroke, useResizeObserver } from "@vueuse/core"
 import { Slider, SliderControl, SliderIndicator, SliderThumb, SliderTrack } from "@ui-sdk/vue/slider"
 import { Switch, SwitchThumb } from "@ui-sdk/vue/switch"
 import { computed, defineAsyncComponent, ref, shallowRef, useTemplateRef, watch } from "vue"
-import { RouterLink, useRoute, useRouter } from "vue-router"
+import { RouterLink, useRoute } from "vue-router"
 import type { Status } from "../../rpc"
 import type { SyncOffer as Offer } from "../../shared/sync-service"
 import { FIXTURES } from "../../shared/fixtures"
@@ -12,7 +12,8 @@ import { inkOf, SEED } from "../../shared/sea"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import FullscreenToggle from "../shared/FullscreenToggle.vue"
-import { askToNotify, connect, inApp, useDeviceLocation, useTheme } from "../shared/bridge"
+import { askToNotify, connect, inApp, syncHere, useDeviceLocation, useTheme } from "../shared/bridge"
+import { invite, router } from "../router"
 import PopupSelect from "../shared/PopupSelect.vue"
 import SeaCanvas from "../shared/SeaCanvas.vue"
 import SyncRows from "../shared/SyncRows.vue"
@@ -35,12 +36,26 @@ watch(prefs, (p) => loaded.value && send.save(migrate(JSON.parse(JSON.stringify(
 
 const SyncOffer = defineAsyncComponent(() => import("../shared/SyncOffer.vue"))
 const SyncJoin = defineAsyncComponent(() => import("../shared/SyncJoin.vue"))
-const offer = ref<Offer>()
-const joining = ref(false)
+const offer = ref<Partial<Offer>>()
+const joining = ref(syncHere && !!invite.link)
+const link = invite.link
+invite.link = ""
 const failed = ref(false)
+let opener: Element | null = null
+const remember = () => (opener = document.activeElement)
+const dialogClose = () => {
+  offer.value = undefined
+  joining.value = false
+  failed.value = false
+  if (opener instanceof HTMLElement) opener.focus()
+}
 const join = async (text: string) => {
-  failed.value = !(await ask.syncJoin({ text }))
-  if (!failed.value) joining.value = false
+  failed.value = !(await ask.syncJoin({ text }).catch(() => false))
+  if (!failed.value) dialogClose()
+}
+const add = async () => {
+  remember()
+  offer.value = (await ask.syncOffer().catch(() => undefined)) ?? {}
 }
 // a sync changes prefs in the host; the copy here follows, or the next save would undo it
 watch(() => status.value?.sync.at, async () => {
@@ -76,8 +91,10 @@ const notify = async (on: boolean) => {
   prefs.value.notify = on && (await askToNotify())
 }
 
-const router = useRouter()
-onKeyStroke("Escape", () => (inApp ? send.close({}) : router.push({ name: "home" })))
+onKeyStroke("Escape", () => {
+  if (document.querySelector("dialog[open]")) return
+  return inApp ? send.close({}) : router.push({ name: "home" })
+})
 
 const sheet = useTemplateRef<HTMLElement>("sheet")
 useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scrollHeight }))
@@ -115,10 +132,12 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
             <PopupSelect v-model="prefs.quietTo" label="Quiet until" :options="HOUR_OPTIONS" />
           </div>
         </template>
-        <SyncRows :on="!!status?.sync.on" :at="status?.sync.at" @toggle="(on) => send.syncOn({ on })" @add="ask.syncOffer().then((o) => (offer = o))" />
-        <div v-if="!status?.sync.on" class="row"><span>Link</span>
-          <button type="button" class="link touch" @click="joining = true">Enter</button>
-        </div>
+        <template v-if="syncHere">
+          <SyncRows :on="!!status?.sync.on" :at="status?.sync.at" @toggle="(on) => send.syncOn({ on })" @add="add" />
+          <div v-if="!status?.sync.on" class="row"><span>Link</span>
+            <button type="button" class="link touch" @click="remember(), (joining = true)">Enter</button>
+          </div>
+        </template>
       </section>
 
       <section>
@@ -184,8 +203,8 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
         <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a></p>
       </footer>
     </form>
-    <SyncOffer v-if="offer" v-bind="offer" @done="offer = undefined" />
-    <SyncJoin v-if="joining" v-model:failed="failed" @join="join" @cancel="(joining = false), (failed = false)" />
+    <SyncOffer v-if="offer" v-bind="offer" @done="dialogClose" />
+    <SyncJoin v-if="joining" v-model:failed="failed" :link="link" @join="join" @cancel="dialogClose" />
   </div>
 </template>
 

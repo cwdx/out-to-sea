@@ -14,9 +14,12 @@ export const merge = (a: Doc, b: Doc): Doc => {
   return Object.fromEntries(SYNCED.flatMap((k) => { const w = pick(a[k], b[k]); return w ? [[k, w]] : [] })) as Doc
 }
 
-/** Stamps what changed in `prefs` since `doc` with `now`; a field never seen before gets time 0 so any remote edit beats it. */
+/** Every synced field at time 1: beats a joining device's untouched time 0, loses to any edit. */
+export const seed = (prefs: Prefs): Doc => Object.fromEntries(SYNCED.map((k) => [k, { v: prefs[k], t: 1 }])) as Doc
+
+/** Stamps what changed in `prefs` since `doc` with `now`, never earlier than the value it replaces; a field never seen before gets time 0 so any remote edit beats it. */
 export const track = (doc: Doc, prefs: Prefs, now: number): Doc =>
-  Object.fromEntries(SYNCED.map((k) => [k, !doc[k] ? { v: prefs[k], t: 0 } : same(doc[k].v, prefs[k]) ? doc[k] : { v: prefs[k], t: now }])) as Doc
+  Object.fromEntries(SYNCED.map((k) => [k, !doc[k] ? { v: prefs[k], t: 0 } : same(doc[k].v, prefs[k]) ? doc[k] : { v: prefs[k], t: Math.max(now, doc[k].t + 1) }])) as Doc
 
 /** The preferences with the synced fields taken from `doc`, checked like any settings file. */
 export const apply = (prefs: Prefs, doc: Doc): Prefs => migrate({ ...prefs, ...Object.fromEntries(SYNCED.flatMap((k) => (doc[k] ? [[k, doc[k].v]] : []))) })

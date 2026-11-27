@@ -11,7 +11,7 @@ import { DEFAULTS, migrate, type City, type Prefs } from "../../shared/prefs"
 import { SEED } from "../../shared/sea"
 import type { SyncOffer } from "../../shared/sync-service"
 import { nativeHost } from "./native-host"
-import { webHost, type Send } from "./web-host"
+import { webHost, webSync, type Send } from "./web-host"
 
 export const useDeviceLocation = (on: boolean) => (native ? nativeHost().locate() : webHost().locate(on))
 export const askToNotify = () => (native ? nativeHost() : webHost()).notify()
@@ -31,11 +31,13 @@ export const native = Capacitor.isNativePlatform()
 
 export const inApp = typeof window !== "undefined" && "__electrobunWebviewId" in window
 
+export const syncHere = inApp || native || webSync
+
 const one = (v: LocationQuery[string] | undefined) => (Array.isArray(v) ? v[0] : v) ?? undefined
 
 export const connect = ({ status, sample = {} }: { status?: (s: Status) => void; sample?: LocationQuery } = {}): { send: Send; ask: Ask } => {
   if (inApp) {
-    const rpc = Electroview.defineRPC<BarRPC>({ handlers: { requests: {}, messages: { status: (s) => status?.(s) } } })
+    const rpc = Electroview.defineRPC<BarRPC>({ maxRequestTime: 30_000, handlers: { requests: {}, messages: { status: (s) => status?.(s) } } })
     new Electroview({ rpc })
     return {
       send: new Proxy({} as Send, { get: (_, k: keyof Messages) => (p: never) => (rpc.send[k] as (p: never) => void)(p) }),

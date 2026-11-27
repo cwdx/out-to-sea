@@ -17,7 +17,6 @@ const fake = (down = false): Relay => {
       if (down) throw new Error("down")
       return events.filter((e) => f.authors?.includes(e.pubkey) !== false && e.kind === f.kinds?.[0] && e.tags.some((t) => t[0] === "d" && f["#d"]?.includes(t[1]!)))
     },
-    subscribe: () => () => {},
   }
 }
 
@@ -66,11 +65,11 @@ test("two devices converge on a changed field, joined by link and by words", asy
   const a = device(relays)
   await a.service.on()
   const offer = (await a.service.offer())!
-  expect(offer.words.split(" ")).toHaveLength(6)
+  expect(offer.words?.split(" ")).toHaveLength(6)
   const b = device(relays)
   expect(await b.service.join(offer.link)).toBe(true)
   const c = device(relays)
-  expect(await c.service.join((await a.service.offer())!.words)).toBe(true)
+  expect(await c.service.join((await a.service.offer())!.words!)).toBe(true)
   expect(await device(relays).service.join("not a code")).toBe(false)
   a.set({ every: 7 })
   a.service.changed()
@@ -112,4 +111,26 @@ test("the host hears after every sync attempt, including a debounced change and 
   const down = device([fake(true)])
   await down.service.on()
   expect(down.syncs.n).toBe(1)
+})
+
+test("joining keeps the existing device's customised values", async () => {
+  const relays = [fake()]
+  const a = device(relays)
+  a.set({ every: 1, theme: "dark" })
+  await a.service.on()
+  const b = device(relays)
+  expect(await b.service.join((await a.service.offer())!.link)).toBe(true)
+  await a.service.focus()
+  expect(b.prefs().every).toBe(1)
+  expect(b.prefs().theme).toBe("dark")
+  expect(a.prefs().every).toBe(1)
+})
+
+test("offer still returns the link when no relay takes the pairing event", async () => {
+  const relay = { ...fake(), publish: async () => { throw new Error("no") } }
+  const a = device([relay])
+  await a.service.on()
+  const offer = await a.service.offer()
+  expect(offer?.link).toContain("#")
+  expect(offer?.words).toBeUndefined()
 })

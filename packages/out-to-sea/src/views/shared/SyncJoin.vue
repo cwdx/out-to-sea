@@ -3,11 +3,12 @@ import { onMounted, ref, useTemplateRef } from "vue"
 import "./sync-dialog.css"
 import { useQrScan } from "./useQrScan"
 
+const { link = "" } = defineProps<{ link?: string }>()
 const emit = defineEmits<{ join: [text: string]; cancel: [] }>()
 const failed = defineModel<boolean>("failed")
 const dialog = useTemplateRef("dialog")
 const video = useTemplateRef("video")
-const text = ref("")
+const text = ref(link)
 const scanning = ref(false)
 const { scan, cancel, error } = useQrScan(video)
 const camera = !!navigator.mediaDevices?.getUserMedia

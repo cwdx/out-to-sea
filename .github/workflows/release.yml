@@ -20,6 +20,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       new: ${{ steps.version.outputs.new }}
+      apk: ${{ steps.version.outputs.apk }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -31,6 +32,8 @@ jobs:
           v=$(jq -r .version packages/out-to-sea/package.json)
           echo "tag=v$v" >> "$GITHUB_OUTPUT"
           if gh release view "v$v" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
+          # a re-run attaches the APK to a release that exists without one
+          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "OutToSea-v$v-android.apk"; then echo "apk=false" >> "$GITHUB_OUTPUT"; else echo "apk=true" >> "$GITHUB_OUTPUT"; fi
 
   build:
     needs: version
@@ -72,7 +75,7 @@ jobs:
 
   android:
     needs: version
-    if: needs.version.outputs.new == 'true'
+    if: needs.version.outputs.apk == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -150,6 +153,7 @@ jobs:
 
   publish-android:
     needs: [version, android, publish]
+    if: ${{ !cancelled() && needs.android.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.publish.result) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -161,4 +165,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.version.outputs.tag }}
-        run: gh release upload "$TAG" OutToSea-*-android.apk --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" OutToSea-*-android.apk --repo "$GITHUB_REPOSITORY" --clobber

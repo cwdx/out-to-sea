@@ -1,5 +1,5 @@
 export { sync } from "./engine"
-export { apply, track, type Doc } from "./merge"
+export { apply, seed, track, type Doc } from "./merge"
 export { newSecret, pubkeyOf } from "./nostr"
 export { claim, linkOf, offer, secretOfLink } from "./pair"
 export { RELAYS, wsRelay, type Relay } from "./relay"
