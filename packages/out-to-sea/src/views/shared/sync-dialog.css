@@ -6,3 +6,7 @@
 .sync .primary { color: var(--teal); font-weight: 500; }
 .sync .entry { width: 100%; font: inherit; font-size: max(16px, 1em); padding: 11px 14px; border-radius: 8px; border: 1px solid var(--paper-line); background: var(--field); color: inherit; }
 .sync :is(button, .entry):focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.sync .spin { display: inline-block; width: 1em; height: 1em; margin-right: 0.5em; vertical-align: -0.15em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { rotate: 1turn; } }
+.sync :disabled { opacity: 0.6; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .sync .spin { animation: none; } }

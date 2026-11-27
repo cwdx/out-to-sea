@@ -21,7 +21,7 @@ const fake = (down = false): Relay => {
 }
 
 let clock = 1_000_000
-const device = (relays: Relay[], loads = { n: 0 }, start?: Saved) => {
+const device = (relays: Relay[], loads = { n: 0 }, start?: Saved, name = "Chrome on Mac") => {
   const syncs = { n: 0 }
   let saved = start
   let prefs: Prefs = { ...DEFAULTS }
@@ -30,6 +30,7 @@ const device = (relays: Relay[], loads = { n: 0 }, start?: Saved) => {
     prefs: () => prefs,
     apply: (p) => void (prefs = p),
     synced: () => void syncs.n++,
+    device: { name, kind: "web" },
     base: "https://sea.example/",
     now: () => (clock += 1000),
     relays,
@@ -44,7 +45,7 @@ test("sync stays off and loads nothing until switched on", async () => {
   await a.service.open()
   a.service.focus()
   a.service.changed()
-  expect(a.service.state()).toEqual({ on: false, at: 0 })
+  expect(a.service.state()).toEqual({ on: false, at: 0, devices: [] })
   expect(a.loads.n).toBe(0)
   await a.service.on()
   expect(a.loads.n).toBe(1)
@@ -85,8 +86,8 @@ test("off forgets the secret", async () => {
   const a = device([fake()])
   await a.service.on()
   await a.service.off()
-  expect(a.store()).toBeUndefined()
-  expect(a.service.state()).toEqual({ on: false, at: 0 })
+  expect(a.store()?.secret).toBeFalsy()
+  expect(a.service.state()).toEqual({ on: false, at: 0, devices: [] })
 })
 
 test("a relay that is down leaves the last sync time and throws nothing", async () => {
@@ -98,7 +99,7 @@ test("a relay that is down leaves the last sync time and throws nothing", async 
   const down = device([fake(true)])
   await down.service.on()
   await down.service.focus()
-  expect(down.service.state()).toEqual({ on: true, at: 0 })
+  expect(down.service.state()).toEqual({ on: true, at: 0, devices: expect.any(Array) })
 })
 
 test("the host hears after every sync attempt, including a debounced change and a failing relay", async () => {
@@ -120,6 +121,7 @@ test("joining keeps the existing device's customised values", async () => {
   await a.service.on()
   const b = device(relays)
   expect(await b.service.join((await a.service.offer())!.link)).toBe(true)
+  await b.service.open()
   await a.service.focus()
   expect(b.prefs().every).toBe(1)
   expect(b.prefs().theme).toBe("dark")
@@ -133,4 +135,105 @@ test("offer still returns the link when no relay takes the pairing event", async
   const offer = await a.service.offer()
   expect(offer?.link).toContain("#")
   expect(offer?.words).toBeUndefined()
+})
+
+test("linked devices list each other and themselves, newest first with this device first", async () => {
+  const relays = [fake()]
+  const a = device(relays, { n: 0 }, undefined, "Mac app")
+  await a.service.on()
+  const b = device(relays, { n: 0 }, undefined, "Android app")
+  await b.service.join((await a.service.offer())!.link)
+  await b.service.open()
+  await a.service.focus()
+  expect(a.service.state().devices.map((d) => [d.name, d.self])).toEqual([["Mac app", true], ["Android app", false]])
+  expect(b.service.state().devices.map((d) => [d.name, d.self])).toEqual([["Android app", true], ["Mac app", false]])
+  expect(a.service.state().devices.map((d) => d.id)).toEqual(b.service.state().devices.map((d) => d.id).reverse())
+})
+
+test("a refresh within a few minutes does not republish; a later one does", async () => {
+  const relay = fake()
+  let published = 0
+  const counted = { ...relay, publish: async (e: NostrEvent) => (published++, relay.publish(e)) }
+  const a = device([counted])
+  await a.service.on()
+  const first = published
+  await a.service.focus()
+  expect(published).toBe(first)
+  clock += 10 * 60_000
+  await a.service.focus()
+  expect(published).toBe(first + 1)
+})
+
+test("a device not seen for 90 days drops out of the list", async () => {
+  const relays = [fake()]
+  const a = device(relays, { n: 0 }, undefined, "Mac app")
+  await a.service.on()
+  const b = device(relays, { n: 0 }, undefined, "Old phone")
+  await b.service.join((await a.service.offer())!.link)
+  await b.service.open()
+  await a.service.focus()
+  expect(a.service.state().devices).toHaveLength(2)
+  clock += 91 * 24 * 3600_000
+  await a.service.focus()
+  expect(a.service.state().devices.map((d) => d.name)).toEqual(["Mac app"])
+})
+
+test("the exposed state never holds the secret", async () => {
+  const a = device([fake()])
+  await a.service.on()
+  expect(JSON.stringify(a.service.state())).not.toContain(a.store()!.secret)
+})
+
+test("two linked devices stay quiet: focusing and opening publish nothing", async () => {
+  const relay = fake()
+  let published = 0
+  const counted = { ...relay, publish: async (e: NostrEvent) => (published++, relay.publish(e)) }
+  const a = device([counted], { n: 0 }, undefined, "Mac app")
+  await a.service.on()
+  const b = device([counted], { n: 0 }, undefined, "Android app")
+  await b.service.join((await a.service.offer())!.link)
+  await b.service.focus()
+  await a.service.focus()
+  const settled = published
+  for (let i = 0; i < 5; i++) {
+    await a.service.focus()
+    await b.service.open()
+  }
+  expect(published).toBe(settled)
+})
+
+test("a join answers once the secret is saved, even when no relay ever answers", async () => {
+  const hung: Relay = { publish: () => new Promise(() => {}), query: () => new Promise(() => {}) }
+  const a = device([fake()])
+  await a.service.on()
+  const link = (await a.service.offer())!.link
+  const b = device([hung])
+  expect(await b.service.join(link)).toBe(true)
+  expect(b.service.state().on).toBe(true)
+  const { secret } = b.store()!
+  expect(await b.service.join(link)).toBe(true)
+  expect(await b.service.join("not a code")).toBe(false)
+  const other = device([fake()])
+  await other.service.on()
+  expect(await b.service.join((await other.service.offer())!.link)).toBe(false)
+  expect(b.store()?.secret).toBe(secret)
+})
+
+test("a device that leaves and rejoins keeps its entry in the list", async () => {
+  const relays = [fake()]
+  const a = device(relays, { n: 0 }, undefined, "Mac app")
+  await a.service.on()
+  const link = (await a.service.offer())!.link
+  const b = device(relays, { n: 0 }, undefined, "Android app")
+  await b.service.join(link)
+  await b.service.open()
+  const id = b.store()!.id
+  await b.service.off()
+  expect(b.service.state().on).toBe(false)
+  expect(b.store()?.secret).toBeFalsy()
+  expect(await b.service.join(link)).toBe(true)
+  await b.service.open()
+  await a.service.focus()
+  expect(b.store()!.id).toBe(id)
+  expect(a.service.state().devices).toHaveLength(2)
 })

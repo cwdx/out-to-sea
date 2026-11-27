@@ -31,7 +31,7 @@ No Mac? Open [sea.cwdx.md](https://sea.cwdx.md) in a browser with WebGPU.
 
 Take `OutToSea-<version>-android.apk` from [Releases](https://github.com/cwdx/out-to-sea/releases/latest) and install it
 by hand. It is a debug build signed with a public debug key that anyone could re-sign with, so it is for sideloading
-only; releases install over each other.
+only; releases install over each other. The app checks for new versions and opens the download.
 
 ### iOS
 

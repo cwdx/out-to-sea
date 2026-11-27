@@ -1,5 +1,6 @@
 import type { BarcodeDetector } from "barcode-detector/ponyfill"
 import { onScopeDispose, ref, type ShallowRef } from "vue"
+import { native } from "./bridge"
 
 let zxing: Promise<typeof BarcodeDetector> | undefined
 
@@ -11,15 +12,16 @@ async function loadZxing() {
 }
 
 async function qrDetector() {
-  const native = (globalThis as { BarcodeDetector?: typeof BarcodeDetector }).BarcodeDetector
-  const Detector = native && (await native.getSupportedFormats()).includes("qr_code") ? native : await (zxing ??= loadZxing())
+  const builtin = (globalThis as { BarcodeDetector?: typeof BarcodeDetector }).BarcodeDetector
+  const Detector = builtin && (await builtin.getSupportedFormats()).includes("qr_code") ? builtin : await (zxing ??= loadZxing())
   return new Detector({ formats: ["qr_code"] })
 }
 
 function cameraError(e: unknown) {
   const name = (e as { name?: string }).name
-  if (name === "NotAllowedError" || name === "SecurityError") return "Camera access is blocked."
+  if (name === "NotAllowedError" || name === "SecurityError") return `Camera access is blocked. Allow it for ${native ? "the app in the phone's settings" : "this site in the browser's settings"}, then try again.`
   if (name === "NotFoundError" || name === "OverconstrainedError") return "No camera found."
+  if (name === "NotReadableError" || name === "AbortError") return "Another app is using the camera."
   return "The camera failed to start."
 }
 

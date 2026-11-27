@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onKeyStroke, useResizeObserver } from "@vueuse/core"
+import { onKeyStroke, useLocalStorage, useMediaQuery, useResizeObserver, useTimeoutFn } from "@vueuse/core"
 import { Slider, SliderControl, SliderIndicator, SliderThumb, SliderTrack } from "@ui-sdk/vue/slider"
 import { Switch, SwitchThumb } from "@ui-sdk/vue/switch"
+import { Tabs, TabsPanel } from "@ui-sdk/vue/tabs"
 import { computed, defineAsyncComponent, ref, shallowRef, useTemplateRef, watch } from "vue"
 import { RouterLink, useRoute } from "vue-router"
 import type { Status } from "../../rpc"
@@ -12,10 +13,11 @@ import { inkOf, SEED } from "../../shared/sea"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import FullscreenToggle from "../shared/FullscreenToggle.vue"
-import { askToNotify, connect, inApp, syncHere, useDeviceLocation, useTheme } from "../shared/bridge"
+import { android, askToNotify, connect, inApp, syncHere, useDeviceLocation, useTheme } from "../shared/bridge"
 import { invite, router } from "../router"
 import PopupSelect from "../shared/PopupSelect.vue"
 import SeaCanvas from "../shared/SeaCanvas.vue"
+import SettingsTabs from "../shared/SettingsTabs.vue"
 import SyncRows from "../shared/SyncRows.vue"
 import { useSeaSound } from "../shared/ocean"
 import WordChoices, { mainChoices } from "../shared/WordChoices.vue"
@@ -40,28 +42,58 @@ const offer = ref<Partial<Offer>>()
 const joining = ref(syncHere && !!invite.link)
 const link = invite.link
 invite.link = ""
-const failed = ref(false)
+const problem = ref<"" | "wrong" | "slow">("")
+const joinBusy = ref(false), adding = ref(false), turningOn = ref(false), linked = ref(false), turnOnFailed = ref(false)
+const SLOW = Symbol()
+function within<T>(p: Promise<T>) {
+  return Promise.race([p, new Promise<typeof SLOW>((r) => setTimeout(r, 20_000, SLOW))])
+}
+const { start: turnOnFor, stop: turnOnStop } = useTimeoutFn(() => (turningOn.value = false, turnOnFailed.value = !status.value?.sync.on), 20_000, { immediate: false })
+const { start: showLinked } = useTimeoutFn(() => (linked.value = false), 5000, { immediate: false })
+watch(() => status.value?.sync.on, (on) => on && (turningOn.value = false, turnOnStop()))
+const toggle = (on: boolean) => {
+  turningOn.value = on
+  turnOnFailed.value = false
+  if (on) turnOnFor()
+  send.syncOn({ on })
+}
 let opener: Element | null = null
 const remember = () => (opener = document.activeElement)
-const dialogClose = () => {
+const dialogClose = (joined = false) => {
   offer.value = undefined
   joining.value = false
-  failed.value = false
-  if (opener instanceof HTMLElement) opener.focus()
+  problem.value = ""
+  const back = joined || !opener?.isConnected ? sheet.value?.querySelector("[data-sync-switch]") : opener
+  if (back instanceof HTMLElement) back.focus()
 }
 const join = async (text: string) => {
-  failed.value = !(await ask.syncJoin({ text }).catch(() => false))
-  if (!failed.value) dialogClose()
+  joinBusy.value = true
+  const done = await within(ask.syncJoin({ text })).catch(() => false)
+  joinBusy.value = false
+  if (done === true) {
+    dialogClose(true)
+    linked.value = true
+    showLinked()
+  } else problem.value = done === SLOW ? "slow" : "wrong"
 }
 const add = async () => {
   remember()
-  offer.value = (await ask.syncOffer().catch(() => undefined)) ?? {}
+  adding.value = true
+  const made = await within(ask.syncOffer().catch(() => undefined))
+  adding.value = false
+  offer.value = (made === SLOW ? undefined : made) ?? {}
 }
 // a sync changes prefs in the host; the copy here follows, or the next save would undo it
 watch(() => status.value?.sync.at, async () => {
   const p = await ask.prefs()
   if (JSON.stringify(p) !== JSON.stringify(prefs.value)) prefs.value = p
 })
+
+const TABS = computed(() => [{ id: "breaks", label: "Breaks" }, { id: "breathing", label: "Breathing" }, { id: "sky", label: "Sky" }, ...(syncHere ? [{ id: "sync", label: "Sync" }] : []), { id: "about", label: "About" }])
+const remembered = useLocalStorage("out-to-sea.settings", "breaks")
+if (joining.value) remembered.value = "sync"
+const tab = computed(() => (TABS.value.some((t) => t.id === remembered.value) ? remembered.value : "breaks"))
+const wide = useMediaQuery("(min-width: 40.01rem)")
 
 const preview = computed(() => sceneOf(status.value?.sky ?? FIXTURES.night))
 useSeaSound(() => prefs.value.sound, () => prefs.value.volume / 100, () => preview.value)
@@ -97,21 +129,21 @@ onKeyStroke("Escape", () => {
 })
 
 const sheet = useTemplateRef<HTMLElement>("sheet")
-useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scrollHeight }))
+useResizeObserver(sheet, () => sheet.value && send.fit({ height: Math.max(sheet.value.scrollHeight, 420) }))
 </script>
 
 <template>
-  <div class="window" :class="{ app: inApp }">
+  <Tabs class="window" :class="{ app: inApp }" :value="tab" :orientation="wide ? 'vertical' : 'horizontal'" @update:value="(v) => v && (remembered = v)">
     <aside class="preview" :data-ink="inkOf(preview)">
       <SeaCanvas :scene="preview" :seed="SEED" :fps="24" />
       <component :is="inApp ? 'button' : RouterLink" class="home-link" :type="inApp ? 'button' : undefined" :to="inApp ? undefined : { name: 'home' }" aria-label="Main screen" @click="inApp && send.home({})"><BrandMark :size="22" /></component>
       <FullscreenToggle v-if="inApp" class="open-home" :full="false" :act="() => send.home({})" />
+      <SettingsTabs :tabs="TABS" :active="tab" />
       <WordChoices class="go" :choices="mainChoices(send, false)" />
     </aside>
 
     <form ref="sheet" class="sheet" @submit.prevent>
-      <section>
-        <h2>Breaks</h2>
+      <TabsPanel value="breaks">
         <div class="row"><span>Remind me every</span>
           <PopupSelect v-model="prefs.every" label="Remind me every" :options="options(EVERY, prefs.every).map((m) => ({ value: m, label: m ? `${m} min` : 'Never' }))" />
         </div>
@@ -132,21 +164,13 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
             <PopupSelect v-model="prefs.quietTo" label="Quiet until" :options="HOUR_OPTIONS" />
           </div>
         </template>
-        <template v-if="syncHere">
-          <SyncRows :on="!!status?.sync.on" :at="status?.sync.at" @toggle="(on) => send.syncOn({ on })" @add="add" />
-          <div v-if="!status?.sync.on" class="row"><span>Link</span>
-            <button type="button" class="link touch" @click="remember(), (joining = true)">Enter</button>
-          </div>
-        </template>
-      </section>
+      </TabsPanel>
 
-      <section>
-        <h2>Breathing</h2>
+      <TabsPanel value="breathing">
         <BreathPattern v-model="prefs.breathing" />
-      </section>
+      </TabsPanel>
 
-      <section class="last">
-        <h2>Atmosphere</h2>
+      <TabsPanel value="sky">
         <div class="row">Sound
           <span class="sound">
             <Slider :value="prefs.volume" :min="5" :max="100" :step="5" :disabled="!prefs.sound" class="slider" @value-change="(v: number | number[]) => (prefs.volume = Number(v))">
@@ -181,13 +205,6 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
           <label class="row">Open at login
             <Switch v-model="prefs.login" class="switch"><SwitchThumb class="thumb" /></Switch>
           </label>
-          <div class="row">
-            <span class="stack">Update automatically<small v-if="status?.update">{{ status.update }}</small></span>
-            <span class="update">
-              <button type="button" class="link" @click="send.update({})">Check now</button>
-              <Switch v-model="prefs.autoUpdate" class="switch" aria-label="Update automatically"><SwitchThumb class="thumb" /></Switch>
-            </span>
-          </div>
         </template>
         <template v-else>
           <label v-if="prefs.weather" class="row">Use my location
@@ -197,32 +214,46 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
             <Switch :model-value="prefs.notify" class="switch" @update:model-value="notify"><SwitchThumb class="thumb" /></Switch>
           </label>
         </template>
-      </section>
-      <footer class="credits">
-        <p>By <a href="https://chriswijnia.com/lab/sea" target="_blank" rel="noreferrer">Chris Wijnia</a> · <a href="https://github.com/cwdx/out-to-sea" target="_blank" rel="noreferrer">Source</a>, MIT<template v-if="status?.version"> · Version {{ status.version }}</template></p>
-        <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a></p>
-      </footer>
+      </TabsPanel>
+
+      <TabsPanel v-if="syncHere" value="sync">
+        <SyncRows :on="!!status?.sync.on" :at="status?.sync.at" :devices="status?.sync.devices ?? []" :busy="turningOn" :adding="adding" :linked="linked" :failed="turnOnFailed" @toggle="toggle" @add="add" @link="remember(), (joining = true)" />
+      </TabsPanel>
+
+      <TabsPanel value="about">
+        <div v-if="inApp" class="row">
+          <span class="stack">Update automatically<small v-if="status?.update">{{ status.update }}</small></span>
+          <span class="update">
+            <button type="button" class="link" @click="send.update({})">Check now</button>
+            <Switch v-model="prefs.autoUpdate" class="switch" aria-label="Update automatically"><SwitchThumb class="thumb" /></Switch>
+          </span>
+        </div>
+        <div v-else-if="android && status?.update" class="row"><span>{{ status.update }}</span>
+          <button type="button" class="link touch" @click="send.update({})">Download</button>
+        </div>
+        <footer class="credits">
+          <p>By <a href="https://chriswijnia.com/lab/sea" target="_blank" rel="noreferrer">Chris Wijnia</a> · <a href="https://github.com/cwdx/out-to-sea" target="_blank" rel="noreferrer">Source</a>, MIT<template v-if="status?.version"> · Version {{ status.version }}</template></p>
+          <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a></p>
+        </footer>
+      </TabsPanel>
     </form>
-    <SyncOffer v-if="offer" v-bind="offer" @done="dialogClose" />
-    <SyncJoin v-if="joining" v-model:failed="failed" :link="link" @join="join" @cancel="dialogClose" />
-  </div>
+    <SyncOffer v-if="offer" v-bind="offer" @done="dialogClose()" />
+    <SyncJoin v-if="joining" v-model:problem="problem" :busy="joinBusy" :link="link" @join="join" @cancel="dialogClose()" />
+  </Tabs>
 </template>
 
 <style>
-.window { display: grid; grid-template-columns: 35% 1fr; height: 100dvh; overflow: hidden; background: var(--paper); color: var(--sheet-ink); font: 400 14px/1.35 var(--sans); }
+.window { display: grid; grid-template-columns: 35% 1fr; grid-template-rows: minmax(0, 1fr); height: 100dvh; overflow: hidden; background: var(--paper); color: var(--sheet-ink); font: 400 14px/1.35 var(--sans); }
 .window {
-  .preview { position: relative; overflow: hidden; height: 100vh; }
+  .preview { position: relative; overflow: hidden; height: 100%; }
   /* the mark and full screen share one top line, and the mark and the words one left edge, 24px in */
   .preview .home-link { position: absolute; top: max(24px, env(safe-area-inset-top)); left: max(24px, env(safe-area-inset-left)); height: 44px; display: flex; align-items: center; color: inherit; text-decoration: none; }
   .preview .open-home { position: absolute; top: 24px; right: 13px; margin: 0; }
   .go { position: absolute; left: max(24px, env(safe-area-inset-left)); right: 24px; bottom: max(30px, env(safe-area-inset-bottom)); color: var(--ivory); display: flex; flex-wrap: wrap; gap: 0.4em 1.6em; font: 400 20px var(--serif); }
 
-  .sheet { padding: 20px calc(36px + env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 44px; display: flex; flex-direction: column; gap: 6px; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .sheet { padding: 20px calc(36px + env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 44px; display: flex; flex-direction: column; gap: 6px; height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
   .sheet::-webkit-scrollbar { display: none; }
   &.app .sheet { padding: 12px 24px 10px 28px; }
-  section { display: grid; padding-bottom: 8px; border-bottom: 1px solid var(--paper-line); }
-  section.last { border-bottom: 0; }
-  h2 { font: 500 22px/1.5 var(--serif); color: var(--heading); margin: 2px 0 0; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 40px; font-size: 15px; }
   .row + .row { border-top: 1px solid color-mix(in srgb, var(--paper-line) 70%, transparent); }
   .stack { display: grid; gap: 1px; }
@@ -240,15 +271,15 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
   .slider .range { height: 100%; border-radius: 2px; background: var(--teal); }
   .slider .knob { width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); }
   .slider .knob:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
-  /* the small print rests at the foot of the sheet, however tall the window */
-  .credits { margin-top: auto; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 18px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
+  .credits { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 18px; padding: 14px 0 2px; color: var(--muted); font-size: 12px; }
   .credits a { color: var(--teal); }
   .update { display: flex; align-items: center; gap: 18px; }
   .link { color: var(--teal); font-size: 13px; }
   .link:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 3px; }
 }
 @media (max-width: 40rem) {
-  .window { grid-template-columns: 1fr; grid-template-rows: 30dvh 1fr; }
+  .window .go { bottom: calc(52px + env(safe-area-inset-bottom)); }
+  .window { grid-template-columns: 1fr; grid-template-rows: 30dvh minmax(0, 1fr); }
   .window .preview, .window .sheet { height: auto; }
   .window .phases { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .window .phase { padding-inline: 2px; }

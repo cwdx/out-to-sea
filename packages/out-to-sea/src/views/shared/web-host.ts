@@ -14,7 +14,12 @@ type Messages = BarRPC["bun"]["messages"]
 export type Send = { [K in keyof Messages]: (p: Messages[K]) => void }
 
 // cwdx.md/sea shares an origin with the console, so a device secret never lives there
-export const webSync = location.host === "sea.cwdx.md"
+export const webSync = import.meta.env.DEV || location.host === "sea.cwdx.md"
+
+const BROWSERS: [string, RegExp][] = [["Edge", /Edg\//], ["Firefox", /Firefox|FxiOS/], ["Chrome", /Chrome|CriOS/], ["Safari", /Safari/]]
+const SYSTEMS = ["Android", "iPhone", "iPad", "Windows", "Mac", "Linux"]
+
+export const browserName = (ua: string) => `${BROWSERS.find(([, re]) => re.test(ua))?.[0] ?? "Browser"} on ${SYSTEMS.find((s) => ua.includes(s)) ?? "web"}`
 
 const HEARTBEAT = 5_000
 // a hidden tab's timers run about once a minute, so only a longer silence than that is a sleep
@@ -90,6 +95,7 @@ const create = () => {
     prefs: () => stored.value,
     apply: (next) => apply(next, true),
     synced: push,
+    device: { name: browserName(navigator.userAgent), kind: "web" },
     base: location.origin + location.pathname,
   })
   const synced = <T>(work: Promise<T>) => work.finally(push)

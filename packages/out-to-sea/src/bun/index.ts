@@ -90,7 +90,7 @@ async function apply(next: Prefs, fromSync = false) {
   push()
 }
 
-const sync = syncService({ store: fileStore(SYNC), prefs: () => prefs, apply: (next) => void apply(next, true), synced: push, base: "https://sea.cwdx.md/" })
+const sync = syncService({ store: fileStore(SYNC), prefs: () => prefs, apply: (next) => void apply(next, true), synced: push, device: { name: "Mac app", kind: "mac" }, base: "https://sea.cwdx.md/" })
 const synced = <T>(work: Promise<T>) => work.finally(push)
 
 /** The main display as a 96px mosaic for the dissolve; empty when screen recording is refused, and the break then simply fades in. */

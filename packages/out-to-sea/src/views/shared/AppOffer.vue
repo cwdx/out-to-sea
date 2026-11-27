@@ -1,23 +1,29 @@
 <script setup lang="ts">
-import { onKeyStroke, useDraggable, useEventListener, useLocalStorage, useTimeoutFn } from "@vueuse/core"
+import { onKeyStroke, useDraggable, useEventListener, useLocalStorage, useMediaQuery, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, useTemplateRef } from "vue"
 import { inApp, native } from "./bridge"
 import { useRise } from "./motion"
 import WaterLine from "./WaterLine.vue"
 
-const dismissed = useLocalStorage("out-to-sea.mac-offer", false)
+const platformOf = () => {
+  const { userAgentData, userAgent, maxTouchPoints } = navigator as Navigator & { userAgentData?: { platform: string } }
+  if (userAgentData?.platform === "Android" || /Android/.test(userAgent)) return "android"
+  return (userAgentData ? userAgentData.platform === "macOS" : userAgent.includes("Macintosh") && maxTouchPoints === 0) ? "mac" : undefined
+}
+const platform = platformOf()
+const OFFERS = {
+  mac: { name: "Mac", sub: "Breaks from the menu bar, even with the browser closed", href: "https://github.com/cwdx/out-to-sea/releases/latest" },
+  android: { name: "Android", sub: "Breaks as notifications, even with the browser closed", href: "https://github.com/cwdx/out-to-sea/releases/latest/download/OutToSea-android.apk" },
+}
+const deal = platform && OFFERS[platform]
+const dismissed = useLocalStorage(`out-to-sea.${platform}-offer`, false, { writeDefaults: false })
 const ready = ref(false)
 const rise = useRise()
-const onMac = () => {
-  const { userAgentData, userAgent, maxTouchPoints } = navigator as Navigator & { userAgentData?: { platform: string } }
-  return userAgentData ? userAgentData.platform === "macOS" : userAgent.includes("Macintosh") && maxTouchPoints === 0
-}
-const eligible = !inApp && !native && onMac() && window.top === window.self
+const eligible = !inApp && !native && !!deal && window.top === window.self
 useTimeoutFn(() => (ready.value = true), 4000, { immediate: eligible })
 const shown = computed(() => eligible && ready.value && !dismissed.value)
 const close = () => (dismissed.value = true)
 
-// it rests at the corner by its CSS; the first drag hands it to left and top, and it never leaves the window
 const offer = useTemplateRef("offer")
 const placed = ref(false)
 const keepInside = () => {
@@ -26,7 +32,9 @@ const keepInside = () => {
   drag.x.value = Math.min(Math.max(0, drag.x.value), window.innerWidth - el.offsetWidth)
   drag.y.value = Math.min(Math.max(0, drag.y.value), window.innerHeight - el.offsetHeight)
 }
+const coarse = useMediaQuery("(pointer: coarse)")
 const drag = useDraggable(offer, {
+  disabled: () => platform === "android" || coarse.value,
   onStart: () => {
     if (placed.value || !offer.value) return
     drag.x.value = offer.value.offsetLeft
@@ -42,11 +50,11 @@ onKeyStroke("Escape", () => shown.value && close())
 
 <template>
   <Transition :css="false" @enter="rise.enter" @leave="rise.leave">
-    <section v-if="shown" ref="offer" class="offer" :style="dragStyle" aria-label="Out to Sea for Mac">
+    <section v-if="shown && deal" ref="offer" class="offer" :class="platform" :style="dragStyle" :aria-label="`Out to Sea for ${deal.name}`">
       <div class="copy">
-        <p class="title">Out to Sea for Mac</p>
-        <p class="sub">Breaks from the menu bar, even with the browser closed</p>
-        <a class="word" href="https://github.com/cwdx/out-to-sea/releases/latest" target="_blank" rel="noopener" @click="close">Download<WaterLine /></a>
+        <p class="title">Out to Sea for {{ deal.name }}</p>
+        <p class="sub">{{ deal.sub }}</p>
+        <a class="word" :href="deal.href" target="_blank" rel="noopener" @click="close">Download<WaterLine /></a>
       </div>
       <button type="button" class="tool" aria-label="Close" @click="close">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -68,6 +76,10 @@ onKeyStroke("Escape", () => shown.value && close())
 .offer:active { cursor: grabbing; }
 .word, .tool { cursor: pointer; }
 .tool { flex: none; margin: -14px -14px 0 auto; color: inherit; opacity: 0.85; }
-@media (pointer: coarse) { .offer { display: none; } }
+@media (pointer: coarse) {
+  .offer.mac { display: none; }
+  .offer.android { left: var(--edge-left); bottom: calc(var(--foot-bottom) + 112px); max-width: none; cursor: default; }
+  .word { display: inline-flex; align-items: center; min-height: 44px; }
+}
 @media (max-width: 40rem) { .offer { left: var(--edge-left); max-width: none; } .copy { flex: 1; } }
 </style>

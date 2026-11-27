@@ -33,7 +33,7 @@ jobs:
           echo "tag=v$v" >> "$GITHUB_OUTPUT"
           if gh release view "v$v" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
           # a re-run attaches the APK to a release that exists without one
-          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "OutToSea-v$v-android.apk"; then echo "apk=false" >> "$GITHUB_OUTPUT"; else echo "apk=true" >> "$GITHUB_OUTPUT"; fi
+          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "OutToSea-android.apk"; then echo "apk=false" >> "$GITHUB_OUTPUT"; else echo "apk=true" >> "$GITHUB_OUTPUT"; fi
 
   build:
     needs: version
@@ -165,4 +165,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.version.outputs.tag }}
-        run: gh release upload "$TAG" OutToSea-*-android.apk --repo "$GITHUB_REPOSITORY" --clobber
+        run: |
+          cp OutToSea-*-android.apk OutToSea-android.apk
+          gh release upload "$TAG" OutToSea-*-android.apk OutToSea-android.apk --repo "$GITHUB_REPOSITORY" --clobber

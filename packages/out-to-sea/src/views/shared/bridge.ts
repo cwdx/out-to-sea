@@ -29,6 +29,8 @@ export const useTheme = (theme: () => Prefs["theme"] | undefined) => {
 
 export const native = Capacitor.isNativePlatform()
 
+export const android = Capacitor.getPlatform() === "android"
+
 export const inApp = typeof window !== "undefined" && "__electrobunWebviewId" in window
 
 export const syncHere = inApp || native || webSync
@@ -80,7 +82,7 @@ export const connect = ({ status, sample = {} }: { status?: (s: Status) => void;
         shot: "",
       }),
       prefs: async () => stored.value,
-      status: async () => ({ version: "", update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, next: Date.now() + 12 * 60_000, paused: 0, quiet: 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky, live: sky, extra: [], sync: { on: false, at: 0 } }),
+      status: async () => ({ version: "", update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, next: Date.now() + 12 * 60_000, paused: 0, quiet: 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky, live: sky, extra: [], sync: { on: false, at: 0, devices: [] } }),
       place: async () => null,
       syncOffer: async () => undefined,
       syncJoin: async () => false,

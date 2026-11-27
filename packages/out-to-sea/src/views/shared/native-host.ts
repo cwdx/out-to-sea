@@ -8,6 +8,7 @@ import type { Session, Status } from "../../rpc"
 import { Core } from "../../shared/core"
 import { skyFor } from "../../shared/fixtures"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../../shared/prefs"
+import { isNewer } from "../../shared/release"
 import { SEED } from "../../shared/sea"
 import { syncService, type Saved } from "../../shared/sync-service"
 import type { Sky } from "../../shared/sky"
@@ -16,11 +17,15 @@ import { version } from "../../../package.json"
 import { router } from "../router"
 import type { Send } from "./web-host"
 
+const android = Capacitor.getPlatform() === "android"
 // iOS keeps only the 64 soonest, so the plan stays well inside it
 const AHEAD = 48
 const KEY = "outtosea:prefs"
 const SYNC_KEY = "outtosea:sync"
+const UPDATE_KEY = "outtosea:update-check"
 const SLEEP_GAP = 150_000
+const RELEASES = "https://api.github.com/repos/cwdx/out-to-sea/releases/latest"
+const APK = "https://github.com/cwdx/out-to-sea/releases/latest/download/OutToSea-android.apk"
 
 export const plan = (core: Pick<Core, "upcoming">, notify: boolean) =>
   notify ? core.upcoming(AHEAD).map((at, i) => ({ id: i + 1, title: "Out to Sea", body: "Look into the distance.", schedule: { at: new Date(at), allowWhileIdle: true } })) : []
@@ -32,12 +37,13 @@ const create = () => {
   let opening: Session["start"] = "look"
   let weather: Conditions | null = null
   let skyRead = 0
+  let update = ""
   const cache = {
     read: async (key: string) => JSON.parse((await Preferences.get({ key: `outtosea:${key}` })).value ?? "null"),
     write: async (key: string, value: unknown) => Preferences.set({ key: `outtosea:${key}`, value: JSON.stringify(value) }),
   }
   const liveSky = (): Sky => ({ ...skyOf(Date.now(), stored.value.city, stored.value.weather ? weather : null), at: Date.now() })
-  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, ...core.state(), every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyFor(stored.value, liveSky()), live: liveSky(), extra: [], sync: sync.state() })
+  const status = (): Status => ({ version, update, theme: stored.value.theme, windowed: false, clock: stored.value.clock, ...core.state(), every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyFor(stored.value, liveSky()), live: liveSky(), extra: [], sync: sync.state() })
   const push = () => {
     replan()
     const s = status()
@@ -80,6 +86,20 @@ const create = () => {
     push()
   }
 
+  const checkUpdate = async () => {
+    if (!android) return
+    const { at = 0, tag = "" } = JSON.parse((await Preferences.get({ key: UPDATE_KEY })).value ?? "{}")
+    const note = (latest: string) => {
+      update = isNewer(latest, version) ? `Version ${latest.replace(/^v/, "")} is out` : ""
+      push()
+    }
+    note(tag)
+    if (Date.now() - at < 12 * 3_600_000) return
+    const { tag_name } = await (await fetch(RELEASES)).json()
+    await Preferences.set({ key: UPDATE_KEY, value: JSON.stringify({ at: Date.now(), tag: tag_name }) })
+    note(String(tag_name))
+  }
+
   const sync = syncService({
     store: {
       get: async () => JSON.parse((await Preferences.get({ key: SYNC_KEY })).value ?? "null") ?? undefined,
@@ -89,6 +109,7 @@ const create = () => {
     prefs: () => stored.value,
     apply: (next) => apply(next, true),
     synced: () => push(),
+    device: Capacitor.getPlatform() === "ios" ? { name: "iPhone app", kind: "ios" } : { name: "Android app", kind: "android" },
     base: "https://sea.cwdx.md/",
   })
   const synced = <T>(work: Promise<T>) => work.finally(push)
@@ -130,6 +151,7 @@ const create = () => {
     core.retime()
     void readSky(true)
     void sync.open()
+    void checkUpdate().catch(() => undefined)
   })
   queue = ready
   void LocalNotifications.addListener("localNotificationActionPerformed", () => core.breakNow())
@@ -137,6 +159,7 @@ const create = () => {
     core.tick()
     void readSky()
     void sync.focus()
+    void checkUpdate().catch(() => undefined)
     push()
   })
   setInterval(() => core.tick(), 5_000)
@@ -158,7 +181,7 @@ const create = () => {
     fit: () => undefined,
     close: () => show("home"),
     home: () => show("home"),
-    update: () => undefined,
+    update: () => android && void window.open(APK, "_blank"),
     full: () => undefined,
   }
 
@@ -190,7 +213,7 @@ const create = () => {
     notify: async () => {
       const ok = await allowed()
       // Android 12+ lets people revoke exact alarms; without them reminders are scheduled inexact, so this is asked once, here
-      if (ok && Capacitor.getPlatform() === "android" && (await LocalNotifications.checkExactNotificationSetting()).exact_alarm !== "granted") void LocalNotifications.changeExactNotificationSetting()
+      if (ok && android && (await LocalNotifications.checkExactNotificationSetting()).exact_alarm !== "granted") void LocalNotifications.changeExactNotificationSetting()
       apply({ ...stored.value, notify: ok })
       return ok
     },

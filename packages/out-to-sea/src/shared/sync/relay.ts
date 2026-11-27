@@ -6,7 +6,7 @@ export type Relay = {
   query: (filter: Filter) => Promise<NostrEvent[]>
 }
 
-export const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net", "wss://relay.nostr.band"]
+export const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net", "wss://offchain.pub"]
 
 /** One request/response over a fresh socket: `frame` goes out on open, `onMessage` settles it; every path closes the socket. */
 const exchange = <T>(url: string, timeout: number, frame: unknown[], onMessage: (msg: unknown[], end: (r: T | Error) => void) => void) =>

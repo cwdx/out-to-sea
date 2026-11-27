@@ -1,9 +1,10 @@
 import type { Prefs } from "./prefs"
-import type { Doc, Relay } from "./sync"
+import type { Doc, Entry, Relay } from "./sync"
 
-export type SyncState = { on: boolean; at: number }
+export type Device = Entry & { self: boolean }
+export type SyncState = { on: boolean; at: number; devices: Device[] }
 export type SyncOffer = { link: string; words?: string }
-export type Saved = { secret: string; doc: Doc }
+export type Saved = { secret: string; doc: Doc; id?: string }
 
 /** Where a host keeps the device secret and the synced fields with their times, apart from Prefs. */
 export type SecretStore = { get: () => Promise<Saved | undefined>; set: (saved: Saved) => Promise<void>; clear: () => Promise<void> }
@@ -12,6 +13,8 @@ export type SyncPorts = {
   store: SecretStore
   prefs: () => Prefs
   apply: (prefs: Prefs) => void
+  /** How this device appears in the list. */
+  device: Pick<Entry, "name" | "kind">
   /** The page address a pairing link points at. */
   base: string
   /** After every sync attempt, so the host can show the new time. */
@@ -23,15 +26,18 @@ export type SyncPorts = {
   load?: () => Promise<typeof import("./sync")>
 }
 
-export const syncService = ({ store, prefs, apply, synced, base, now = Date.now, relays, delay = 2000, load = () => import("./sync") }: SyncPorts) => {
+const REFRESH = 5 * 60_000
+
+export const syncService = ({ store, prefs, apply, synced, device, base, now = Date.now, relays, delay = 2000, load = () => import("./sync") }: SyncPorts) => {
   let saved: Saved | undefined
   let at = 0
+  let kept: string | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   let engine: ReturnType<typeof load> | undefined
   let read: Promise<void> | undefined
   let queue: Promise<unknown> = Promise.resolve()
 
-  const ready = () => (read ??= store.get().then((s) => void (saved = s)))
+  const ready = () => (read ??= store.get().then((s) => void ([saved, kept] = [s?.secret ? s : undefined, s?.id])))
   const lib = () => (engine ??= load())
   const live = async () => {
     const { RELAYS, wsRelay } = await lib()
@@ -49,9 +55,13 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
     },
     }))
     const { secret } = saved
-    const doc = await sync(all, secret, track(saved.doc, prefs(), now()), now())
+    const id = (saved.id ??= crypto.randomUUID())
+    const t = now()
+    const mine = saved.doc.devices?.[id]
+    const devices = mine && t - mine.at < REFRESH ? saved.doc.devices : { ...saved.doc.devices, [id]: { id, ...device, at: t } }
+    const doc = await sync(all, secret, { ...track(saved.doc, prefs(), t), devices }, t)
     if (saved?.secret !== secret) return
-    saved = { secret, doc }
+    saved = { secret, doc, id }
     await store.set(saved)
     const before = prefs()
     const next = merge(before, doc)
@@ -62,9 +72,8 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
   const run = () => (queue = queue.then(() => pull().catch(() => {}).finally(synced)))
 
   const start = async (secret: string, doc: Doc = {}) => {
-    saved = { secret, doc }
+    saved = { secret, doc, id: kept }
     await store.set(saved)
-    await run()
   }
 
   const on = async () => {
@@ -72,11 +81,17 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
     if (!saved) {
       const { newSecret, seed } = await lib()
       await start(newSecret(), seed(prefs()))
+      await run()
     }
   }
 
   return {
-    state: (): SyncState => ({ on: !!saved, at }),
+    // the devices share one secret, so a lost one cannot be revoked
+    state: (): SyncState => ({
+      on: !!saved,
+      at,
+      devices: Object.values(saved?.doc.devices ?? {}).map((e) => ({ ...e, self: e.id === saved?.id })).sort((a, b) => +b.self - +a.self || b.at - a.at),
+    }),
     open: async () => {
       await ready()
       await run()
@@ -100,12 +115,14 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
     },
     join: async (text: string) => {
       try {
+        await ready()
         const { claim, secretOfLink } = await lib()
         const t = text.trim()
+        if (saved) return !/\s/.test(t) && secretOfLink(t) === saved.secret
         const secret = /\s/.test(t) ? await claim(await live(), t, now()) : secretOfLink(t)
         if (!secret) return false
-        await ready()
         await start(secret)
+        void run()
         return true
       } catch {
         return false
@@ -113,9 +130,11 @@ export const syncService = ({ store, prefs, apply, synced, base, now = Date.now,
     },
     off: async () => {
       clearTimeout(timer)
+      await ready()
+      kept = saved?.id ?? kept
       saved = undefined
       at = 0
-      await store.clear()
+      await (kept ? store.set({ secret: "", doc: {}, id: kept }) : store.clear())
     },
   }
 }
