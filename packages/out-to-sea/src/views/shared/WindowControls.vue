@@ -18,4 +18,5 @@ const emit = defineEmits<{ full: [on: boolean]; close: [] }>()
 <style scoped>
 .controls { display: inline-flex; align-items: center; gap: 22px; }
 svg { width: 20px; height: 20px; }
+@media (pointer: coarse) { .controls { display: none; } }
 </style>

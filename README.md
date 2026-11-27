@@ -27,6 +27,16 @@ download needs `xattr -dr com.apple.quarantine /Applications/OutToSea.app` once 
 
 No Mac? Open [sea.cwdx.md](https://sea.cwdx.md) in a browser with WebGPU.
 
+### Android
+
+Take `OutToSea-<version>-android.apk` from [Releases](https://github.com/cwdx/out-to-sea/releases/latest) and install it
+by hand. It is a debug build, not signed for a store.
+
+### iOS
+
+There is no store build yet. Build it from source with Xcode: run `bunx cap sync ios` in `packages/out-to-sea`, then
+open `ios/App/App.xcodeproj`.
+
 <p align="center">
   <a href="docs/tour.mp4"><img src="docs/tour.gif" alt="The main screen at sunset with rings spreading where the water is tapped, a break under the moon, and breathing in the rain"></a>
 </p>

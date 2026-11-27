@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 import { migrate, type Prefs } from "../shared/prefs"
+import type { SecretStore } from "../shared/sync-service"
 
 export type Stored = Prefs & Record<string, unknown>
 
@@ -24,3 +25,12 @@ export const savePrefs = async (path: string, prefs: Stored) => {
     throw error
   })
 }
+
+export const fileStore = (path: string): SecretStore => ({
+  get: () => readFile(path, "utf8").then(JSON.parse, () => undefined),
+  set: async (saved) => {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, JSON.stringify(saved), { mode: 0o600 })
+  },
+  clear: () => rm(path, { force: true }),
+})

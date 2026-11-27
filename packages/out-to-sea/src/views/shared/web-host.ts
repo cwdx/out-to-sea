@@ -1,9 +1,10 @@
-import { tryOnScopeDispose, until, useEventListener, useGeolocation, useLocalStorage, useWebNotification } from "@vueuse/core"
+import { StorageSerializers, tryOnScopeDispose, until, useEventListener, useGeolocation, useLocalStorage, useWebNotification } from "@vueuse/core"
 import type { BarRPC, Session, Status } from "../../rpc"
 import { skyFor } from "../../shared/fixtures"
 import { SEED } from "../../shared/sea"
 import { breathingOf, DEFAULTS, intervalOf, migrate, type City, type Prefs } from "../../shared/prefs"
-import { holdQuiet, pauseFor, quietEnd, Reminder, snoozeFor } from "../../shared/reminder"
+import { Core } from "../../shared/core"
+import { syncService, type Saved } from "../../shared/sync-service"
 import type { Sky } from "../../shared/sky"
 import { cityNamed, cityOfZone, placeNameAt, readWeather, skyOf, type Conditions } from "../../shared/weather"
 import { router } from "../router"
@@ -19,10 +20,7 @@ const SLEEP_GAP = 150_000
 const create = () => {
   const stored = useLocalStorage<Prefs>("outtosea:prefs", DEFAULTS, { mergeDefaults: (saved) => migrate(saved) })
   const interval = () => intervalOf(stored.value.every)
-  const reminder = new Reminder(Date.now(), interval(), SLEEP_GAP)
   const watchers = new Set<(s: Status) => void>()
-  let pausedUntil = 0
-  let uncounted = false
   let current: Session | undefined
   let opening: Session["start"] = "look"
   const position = useGeolocation({ immediate: false })
@@ -59,7 +57,7 @@ const create = () => {
   }
   const liveSky = (): Sky => ({ ...skyOf(Date.now(), stored.value.city, stored.value.weather ? weather : null), at: Date.now() })
   const skyNow = (): Sky => skyFor(stored.value, liveSky())
-  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, next: reminder.nextBreakAt, quiet: stored.value.quiet ? quietEnd(Date.now(), stored.value.quietFrom, stored.value.quietTo) : 0, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [] })
+  const status = (): Status => ({ version, update: "", theme: stored.value.theme, windowed: false, clock: stored.value.clock, ...core.state(), every: stored.value.every, look: stored.value.look, sound: stored.value.sound, volume: stored.value.volume / 100, sky: skyNow(), live: liveSky(), extra: [], sync: sync.state() })
   const push = () => {
     const s = status()
     for (const w of watchers) w(s)
@@ -83,11 +81,24 @@ const create = () => {
     return reading
   }
 
-  function apply(next: Prefs) {
+  const saved = useLocalStorage<Saved | null>("outtosea:sync", null, { serializer: StorageSerializers.object, writeDefaults: false })
+  const sync = syncService({
+    store: { get: async () => saved.value ?? undefined, set: async (s) => void (saved.value = s), clear: async () => void (saved.value = null) },
+    prefs: () => stored.value,
+    apply: (next) => apply(next, true),
+    synced: push,
+    base: location.origin + location.pathname,
+  })
+  const synced = <T>(work: Promise<T>) => work.finally(push)
+  void sync.open()
+  useEventListener(window, "focus", () => void sync.focus())
+
+  function apply(next: Prefs, fromSync = false) {
     const before = stored.value
     stored.value = { ...before, ...migrate({ ...before, ...next }) }
-    if (stored.value.every !== before.every) reminder.setInterval(Date.now(), interval())
+    if (stored.value.every !== before.every) core.retime()
     if (stored.value.weather !== before.weather || stored.value.city?.name !== before.city?.name) void readSky(true)
+    if (!fromSync) sync.changed()
     push()
   }
 
@@ -96,44 +107,27 @@ const create = () => {
     if (!router.currentRoute.value.query.scene) void router.replace({ name })
   }
   const openBreak = (start = stored.value.start) => {
-    uncounted = false
     current = undefined
     opening = start
     show("break")
     if (document.hidden && stored.value.notify) void notification.show()
   }
-  const finish = () => {
-    // from the main screen there is no break to end: the coming one is skipped, and the one after it keeps its time
-    if (!reminder.running) reminder.postpone(Date.now(), interval())
-    else if (!uncounted) reminder.finish(Date.now())
-    uncounted = false
-    current = undefined
-    show("home")
-    push()
-  }
-  const snooze = () => {
-    finish()
-    snoozeFor(reminder, Date.now(), status(), interval())
-    push()
-  }
-  const pause = ({ for: ms }: { for: number }) => {
-    if (reminder.running) finish()
-    pausedUntil = pauseFor(reminder, Date.now(), ms, interval())
-    push()
-  }
+  const core = new Core({
+    now: Date.now,
+    interval,
+    prefs: () => stored.value,
+    open: openBreak,
+    close: () => {
+      current = undefined
+      if (router.currentRoute.value.name === "break") show("home")
+    },
+    push,
+  }, SLEEP_GAP)
 
   const heartbeat = setInterval(() => {
-    const now = Date.now()
-    if (pausedUntil && now >= pausedUntil) pausedUntil = 0
-    const event = reminder.tick(now)
-    if (event === "start" && !holdQuiet(reminder, now, stored.value)) openBreak()
-    // after a sleep the reminder has begun a fresh interval; a break still showing just closes
-    if (event === "reset" && router.currentRoute.value.name === "break") {
-      uncounted = true
-      finish()
-    }
-    const { nextBreakAt } = reminder
-    if (nextBreakAt !== null && nextBreakAt - now < 120_000) void readSky()
+    core.tick()
+    const { next } = core.state()
+    if (next !== null && next - Date.now() < 120_000) void readSky()
   }, HEARTBEAT)
   const pulse = setInterval(push, 15_000)
   // a hot reload makes a new host; the old one must stop ticking
@@ -144,12 +138,13 @@ const create = () => {
   void readSky(true)
 
   const send: Send = {
-    finish,
-    snooze,
+    finish: core.finish.bind(core),
+    snooze: core.snooze.bind(core),
     sound: ({ on }) => apply({ ...stored.value, sound: on }),
+    syncOn: ({ on }) => void synced(on ? sync.on() : sync.off()),
     save: apply,
-    breakNow: ({ start }) => reminder.start(Date.now()) && openBreak(start),
-    pause,
+    breakNow: ({ start }) => core.breakNow(start),
+    pause: ({ for: ms }) => core.pause(ms),
     settings: () => {
       void readSky(true)
       show("settings")
@@ -168,6 +163,8 @@ const create = () => {
       session: async () => (current ??= { seed: SEED, sky: skyNow(), start: opening, look: stored.value.look, pattern: breathingOf(stored.value), sound: stored.value.sound, volume: stored.value.volume / 100, lead: true, windowed: false, shot: "" }),
       prefs: async () => stored.value,
       status: async () => status(),
+      syncOffer: async () => synced(sync.offer()),
+      syncJoin: async ({ text }: { text: string }) => synced(sync.join(text)),
       place: async ({ name }: { name: string }) => {
         const city = await cityNamed(name)
         if (city) apply({ ...stored.value, city, locate: false })
@@ -194,5 +191,3 @@ const create = () => {
 
 let host: ReturnType<typeof create> | undefined
 export const webHost = () => (host ??= create())
-export const useDeviceLocation = (on: boolean) => webHost().locate(on)
-export const askToNotify = () => webHost().notify()

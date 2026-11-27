@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onKeyStroke, useDraggable, useEventListener, useLocalStorage, useTimeoutFn } from "@vueuse/core"
 import { computed, ref, useTemplateRef } from "vue"
-import { inApp } from "./bridge"
+import { inApp, native } from "./bridge"
 import { useRise } from "./motion"
 import WaterLine from "./WaterLine.vue"
 
@@ -12,7 +12,7 @@ const onMac = () => {
   const { userAgentData, userAgent, maxTouchPoints } = navigator as Navigator & { userAgentData?: { platform: string } }
   return userAgentData ? userAgentData.platform === "macOS" : userAgent.includes("Macintosh") && maxTouchPoints === 0
 }
-const eligible = !inApp && onMac() && window.top === window.self
+const eligible = !inApp && !native && onMac() && window.top === window.self
 useTimeoutFn(() => (ready.value = true), 4000, { immediate: eligible })
 const shown = computed(() => eligible && ready.value && !dismissed.value)
 const close = () => (dismissed.value = true)
@@ -56,7 +56,7 @@ onKeyStroke("Escape", () => shown.value && close())
 </template>
 
 <style scoped>
-.offer { position: absolute; z-index: 10; cursor: grab; touch-action: none; isolation: isolate; overflow: hidden; right: var(--foot-right); bottom: calc(var(--foot-bottom) + 44px + 22px); display: flex; align-items: flex-start; gap: 1.6em; padding: 1.7em 1.6em 2.1em 2em; border-radius: 28px; color: #fff; max-width: min(27rem, calc(100vw - var(--edge-left) - var(--foot-right)));
+.offer { color: var(--ivory); position: absolute; z-index: 10; cursor: grab; touch-action: none; isolation: isolate; overflow: hidden; right: var(--foot-right); bottom: calc(var(--foot-bottom) + 44px + 22px); display: flex; align-items: flex-start; gap: 1.6em; padding: 1.7em 1.6em 2.1em 2em; border-radius: 28px; color: #fff; max-width: min(27rem, calc(100vw - var(--edge-left) - var(--foot-right)));
   background: linear-gradient(140deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.05) 55%, rgb(255 255 255 / 0));
   -webkit-backdrop-filter: blur(10px) saturate(1.4); backdrop-filter: blur(10px) saturate(1.4);
   box-shadow: inset 1.5px 1.5px 0 rgb(255 255 255 / 0.55), inset -1px -1px 0 rgb(255 255 255 / 0.14), inset 0 0 28px rgb(255 255 255 / 0.05), 0 18px 50px rgb(8 24 44 / 0.22); }
@@ -68,5 +68,6 @@ onKeyStroke("Escape", () => shown.value && close())
 .offer:active { cursor: grabbing; }
 .word, .tool { cursor: pointer; }
 .tool { flex: none; margin: -14px -14px 0 auto; color: inherit; opacity: 0.85; }
+@media (pointer: coarse) { .offer { display: none; } }
 @media (max-width: 40rem) { .offer { left: var(--edge-left); max-width: none; } .copy { flex: 1; } }
 </style>

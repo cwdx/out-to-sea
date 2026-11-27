@@ -2,21 +2,22 @@
 import { onKeyStroke, useResizeObserver } from "@vueuse/core"
 import { Slider, SliderControl, SliderIndicator, SliderThumb, SliderTrack } from "@ui-sdk/vue/slider"
 import { Switch, SwitchThumb } from "@ui-sdk/vue/switch"
-import { computed, ref, shallowRef, useTemplateRef, watch } from "vue"
+import { computed, defineAsyncComponent, ref, shallowRef, useTemplateRef, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 import type { Status } from "../../rpc"
+import type { SyncOffer as Offer } from "../../shared/sync-service"
 import { FIXTURES } from "../../shared/fixtures"
 import { DEFAULTS, degrees, migrate, unitOf, type Prefs } from "../../shared/prefs"
 import { inkOf, SEED } from "../../shared/sea"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
 import FullscreenToggle from "../shared/FullscreenToggle.vue"
-import { connect, inApp, useTheme } from "../shared/bridge"
+import { askToNotify, connect, inApp, useDeviceLocation, useTheme } from "../shared/bridge"
 import PopupSelect from "../shared/PopupSelect.vue"
 import SeaCanvas from "../shared/SeaCanvas.vue"
+import SyncRows from "../shared/SyncRows.vue"
 import { useSeaSound } from "../shared/ocean"
 import WordChoices, { mainChoices } from "../shared/WordChoices.vue"
-import { askToNotify, useDeviceLocation } from "../shared/web-host"
 import BreathPattern from "./BreathPattern.vue"
 
 const status = shallowRef<Status>()
@@ -31,6 +32,21 @@ void ask.prefs().then((p) => {
 void ask.status().then((s) => (status.value = s))
 
 watch(prefs, (p) => loaded.value && send.save(migrate(JSON.parse(JSON.stringify(p)))), { deep: true })
+
+const SyncOffer = defineAsyncComponent(() => import("../shared/SyncOffer.vue"))
+const SyncJoin = defineAsyncComponent(() => import("../shared/SyncJoin.vue"))
+const offer = ref<Offer>()
+const joining = ref(false)
+const failed = ref(false)
+const join = async (text: string) => {
+  failed.value = !(await ask.syncJoin({ text }))
+  if (!failed.value) joining.value = false
+}
+// a sync changes prefs in the host; the copy here follows, or the next save would undo it
+watch(() => status.value?.sync.at, async () => {
+  const p = await ask.prefs()
+  if (JSON.stringify(p) !== JSON.stringify(prefs.value)) prefs.value = p
+})
 
 const preview = computed(() => sceneOf(status.value?.sky ?? FIXTURES.night))
 useSeaSound(() => prefs.value.sound, () => prefs.value.volume / 100, () => preview.value)
@@ -99,6 +115,10 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
             <PopupSelect v-model="prefs.quietTo" label="Quiet until" :options="HOUR_OPTIONS" />
           </div>
         </template>
+        <SyncRows :on="!!status?.sync.on" :at="status?.sync.at" @toggle="(on) => send.syncOn({ on })" @add="ask.syncOffer().then((o) => (offer = o))" />
+        <div v-if="!status?.sync.on" class="row"><span>Link</span>
+          <button type="button" class="link touch" @click="joining = true">Enter</button>
+        </div>
       </section>
 
       <section>
@@ -164,6 +184,8 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
         <p>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>, <a href="https://open-meteo.com/en/licence" target="_blank" rel="noreferrer">CC BY 4.0</a></p>
       </footer>
     </form>
+    <SyncOffer v-if="offer" v-bind="offer" @done="offer = undefined" />
+    <SyncJoin v-if="joining" v-model:failed="failed" @join="join" @cancel="(joining = false), (failed = false)" />
   </div>
 </template>
 
@@ -172,11 +194,11 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
 .window {
   .preview { position: relative; overflow: hidden; height: 100vh; }
   /* the mark and full screen share one top line, and the mark and the words one left edge, 24px in */
-  .preview .home-link { position: absolute; top: 24px; left: 24px; height: 44px; display: flex; align-items: center; color: inherit; text-decoration: none; }
+  .preview .home-link { position: absolute; top: max(24px, env(safe-area-inset-top)); left: max(24px, env(safe-area-inset-left)); height: 44px; display: flex; align-items: center; color: inherit; text-decoration: none; }
   .preview .open-home { position: absolute; top: 24px; right: 13px; margin: 0; }
-  .go { position: absolute; left: 24px; right: 24px; bottom: 30px; color: var(--ivory); display: flex; flex-wrap: wrap; gap: 0.4em 1.6em; font: 400 20px var(--serif); }
+  .go { position: absolute; left: max(24px, env(safe-area-inset-left)); right: 24px; bottom: max(30px, env(safe-area-inset-bottom)); color: var(--ivory); display: flex; flex-wrap: wrap; gap: 0.4em 1.6em; font: 400 20px var(--serif); }
 
-  .sheet { padding: 20px 36px 16px 44px; display: flex; flex-direction: column; gap: 6px; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .sheet { padding: 20px calc(36px + env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) 44px; display: flex; flex-direction: column; gap: 6px; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
   .sheet::-webkit-scrollbar { display: none; }
   &.app .sheet { padding: 12px 24px 10px 28px; }
   section { display: grid; padding-bottom: 8px; border-bottom: 1px solid var(--paper-line); }
@@ -209,6 +231,16 @@ useResizeObserver(sheet, () => sheet.value && send.fit({ height: sheet.value.scr
 @media (max-width: 40rem) {
   .window { grid-template-columns: 1fr; grid-template-rows: 30dvh 1fr; }
   .window .preview, .window .sheet { height: auto; }
-  .window .sheet { padding: 18px 20px max(22px, env(safe-area-inset-bottom)); }
+  .window .phases { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .window .phase { padding-inline: 2px; }
+  .window .group { padding-left: 6px; }
+  .window .sheet { padding: 18px max(20px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+}
+@media (pointer: coarse) {
+  .window .row { min-height: 48px; }
+  .window :is(.field, .group input, .popup-trigger) { font-size: 16px; }
+  .window :is(.field, .popup-trigger, .group) { min-height: 44px; }
+  .window .step { padding-inline: 5px; }
+  .window :is(.credits a, .link) { display: inline-flex; align-items: center; min-height: 44px; }
 }
 </style>

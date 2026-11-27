@@ -45,7 +45,8 @@ html[data-theme="dark"] { --paper: #15232d; --paper-line: #273844; --sheet-ink: 
 .tool:is(:hover, :focus-visible) { opacity: 1; }
 .tool svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 @media (pointer: coarse), (max-width: 40rem) {
-  .word, .touch { display: inline-flex; align-items: center; min-height: 44px; margin-block: 0; padding-block: 0 0.2em; }
+  .switch::after { content: ""; position: absolute; inset: -8px -4px; }
+  .word, .touch { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; margin-block: 0; padding-block: 0 0.2em; }
 }
 * { box-sizing: border-box; margin: 0; }
 /* night under everything, so a screen that is still arriving never shows a white page */

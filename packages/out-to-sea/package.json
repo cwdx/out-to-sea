@@ -1,6 +1,6 @@
 {
   "name": "out-to-sea",
-  "version": "0.3.12",
+  "version": "0.4.0",
   "description": "A break and breathing app for the Mac menu bar and the web: look out to sea, then breathe.",
   "license": "MIT",
   "author": "Chris Wijnia",
@@ -18,6 +18,9 @@
     "format": "eslint . --fix --cache --cache-location node_modules/.cache/eslint/"
   },
   "devDependencies": {
+    "@capacitor/android": "9.0.0-rc.0",
+    "@capacitor/cli": "9.0.0-rc.0",
+    "@capacitor/ios": "9.0.0-rc.0",
     "@cw/eslint-config": "*",
     "@golar/vue": "0.1.11",
     "@types/bun": "1.4.4",
@@ -31,14 +34,23 @@
     "vite": "8.3.8"
   },
   "dependencies": {
+    "@capacitor/app": "9.0.0-alpha.2",
+    "@capacitor/core": "9.0.0-rc.0",
+    "@capacitor/local-notifications": "9.0.0-alpha.2",
+    "@capacitor/preferences": "9.0.0-alpha.2",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/bip39": "2.4.0",
     "@ui-sdk/core": "0.1.0-beta.7",
     "@ui-sdk/vue": "0.1.0-beta.7",
     "@vgpu/wgsl": "0.6.0",
     "@vueuse/core": "15.0.0",
     "@vueuse/router": "15.0.0",
+    "barcode-detector": "3.2.3",
     "gsap": "3.15.1",
     "suncalc": "1.9.0",
     "three": "0.187.0",
+    "uqr": "0.1.3",
     "vgpu": "0.6.0",
     "vue": "3.5.45",
     "vue-router": "5.5.1"

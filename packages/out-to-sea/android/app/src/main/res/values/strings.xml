@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Out to Sea</string>
+    <string name="title_activity_main">Out to Sea</string>
+    <string name="package_name">md.cwdx.outtosea</string>
+    <string name="custom_url_scheme">md.cwdx.outtosea</string>
+</resources>

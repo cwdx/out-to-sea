@@ -8,7 +8,7 @@ import { inkOf, SEED } from "../../shared/sea"
 import { nextLine } from "../../shared/reminder"
 import { sceneOf } from "../../shared/sky"
 import BrandMark from "../shared/BrandMark.vue"
-import { connect, inApp } from "../shared/bridge"
+import { connect, inApp, native } from "../shared/bridge"
 import MacAppOffer from "../shared/MacAppOffer.vue"
 import SeaCanvas from "../shared/SeaCanvas.vue"
 import { useRise } from "../shared/motion"
@@ -52,15 +52,17 @@ const clock = computed(() => {
 })
 // the clock takes the biggest open rectangle of sky: below the corner row, above the horizon, beside or over the words
 const caption = useTemplateRef<HTMLElement>("caption")
+const head = useTemplateRef<HTMLElement>("head")
+const foot = useTemplateRef<HTMLElement>("foot")
 const cue = useTemplateRef<HTMLElement>("cue")
 const room = shallowRef<{ x: number; y: number; w: number; h: number; size: number }>()
 const { width: vw, height: vh } = useWindowSize()
 const place = () => {
-  const c = caption.value, q = cue.value
-  if (!c || !q) return
+  const c = caption.value, q = cue.value, hd = head.value, ft = foot.value
+  if (!c || !q || !hd || !ft) return
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize), gap = 28, dateH = 1.9 * rem
-  const edge = Math.max(0.046 * vw.value, 28), x0 = edge, x1 = vw.value - edge
-  const y0 = Math.max(0.055 * vh.value, 34) + 2.6 * rem, y1 = 0.545 * vh.value - 0.02 * vh.value
+  const x0 = ft.offsetLeft, x1 = x0 + ft.offsetWidth
+  const y0 = hd.offsetTop + 2.6 * rem, y1 = 0.545 * vh.value - 0.02 * vh.value
   const at = { x: q.offsetLeft + c.offsetLeft, y: q.offsetTop + c.offsetTop }, right = at.x + c.offsetWidth
   const rooms = [
     { x: x0, y: y0, w: at.x - gap - x0, h: y1 - y0 },
@@ -90,9 +92,9 @@ const choose = (choice: Pick<Prefs, "hour" | "sky" | "temp">) => {
 <template>
   <main v-if="status && scene" class="home" :class="{ windowed: inApp && !full }" :data-ink="ink" :data-side="scene.orb.x < 0.5 ? 'right' : 'left'">
     <SeaCanvas ref="sea" :scene="scene" :seed="SEED" :fps="30" :frame="frame" @sky="bare = !bare" @water="ocean?.plop()" />
-    <header><BrandMark /></header>
+    <header ref="head"><BrandMark /></header>
     <div v-if="inApp && !full" class="grip electrobun-webkit-app-region-drag" />
-    <WindowControls class="corner" :full="full" @full="(on) => send.full({ on: (full = on) })" @close="send.close({})" />
+    <WindowControls v-if="!native" class="corner" :full="full" @full="(on) => send.full({ on: (full = on) })" @close="send.close({})" />
     <time v-if="status.clock && room" class="clock" :class="{ bare }" :style="{ 'left': room.x + 'px', 'top': room.y + 'px', 'width': room.w + 'px', 'height': room.h + 'px', '--clock': room.size + 'px' }" :datetime="now.toISOString()">
       <span class="date">{{ clock.date }}</span>
       <span class="time">{{ clock.hour }}<i>{{ clock.sep }}</i>{{ clock.minute }}</span>
@@ -106,7 +108,7 @@ const choose = (choice: Pick<Prefs, "hour" | "sky" | "temp">) => {
       </section>
     </Transition>
     <MacAppOffer v-if="!picking" />
-    <footer>
+    <footer ref="foot">
       <Transition :css="false" @enter="rise.enter" @leave="rise.leave">
         <SkyPicker v-if="picking && prefs" class="skies" :hour="prefs.hour" :sky="prefs.sky" :temp="prefs.temp" :unit="prefs.unit" :live="status.live" @choose="choose" />
       </Transition>
@@ -147,7 +149,7 @@ p { font: 400 clamp(15px, 1.25vw, 21px) / 1.3 var(--sans); opacity: 0.88; }
 .cue { transition: opacity var(--dur-slow) var(--ease); }
 .cue.bare { opacity: 0; }
 [data-side="right"] .cue { left: auto; right: 8.1vw; }
-@media (max-width: 40rem) { [data-side] .cue { left: var(--edge-left); right: var(--foot-right); } }
+@media (max-width: 40rem) { [data-side] .cue { left: var(--edge-left); right: var(--foot-right); bottom: 48vh; justify-content: flex-end; } }
 footer { position: absolute; left: var(--foot-left); right: var(--foot-right); bottom: var(--foot-bottom); display: flex; flex-wrap: wrap; gap: 1.2em; align-items: center; justify-content: space-between; color: var(--ivory); font: 400 clamp(14px, 1.1vw, 17px) / 1 var(--sans); }
 .place { display: inline-flex; align-items: center; gap: 0.6em; min-height: 44px; opacity: 0.85; transition: opacity 0.2s; }
 .place:is(:hover, :focus-visible, [aria-expanded="true"]) { opacity: 1; }

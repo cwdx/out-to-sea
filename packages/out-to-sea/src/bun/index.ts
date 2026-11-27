@@ -10,14 +10,16 @@ import { breathingOf, DEFAULTS, intervalOf, migrate, type Prefs } from "../share
 import type { Sky } from "../shared/sky"
 import { anchorBelow } from "./anchor"
 import { FLOATING, overFullScreenApps, SCREEN, windowLevel } from "./level"
-import { holdQuiet, pauseFor, quietEnd, Reminder, snoozeFor } from "../shared/reminder"
-import { loadPrefs, savePrefs, type Stored } from "./store"
+import { Core } from "../shared/core"
+import { syncService } from "../shared/sync-service"
+import { fileStore, loadPrefs, savePrefs, type Stored } from "./store"
 import { cityNamed, type Conditions } from "../shared/weather"
 import { cityOfZone, getWeather, skyOf } from "./weather"
 
 const run = promisify(execFile)
 const SUPPORT = join(homedir(), "Library/Application Support/OutToSea")
 const SETTINGS = join(SUPPORT, "settings.json")
+const SYNC = join(SUPPORT, "sync.json")
 const LEGACY = join(homedir(), "Library/Application Support/cw/bar.json")
 const LOGIN = join(homedir(), "Library/LaunchAgents/com.chriswijnia.bar.plist")
 const HEARTBEAT = 5_000
@@ -29,8 +31,6 @@ if (loaded.migrated) await savePrefs(SETTINGS, prefs).catch(() => undefined)
 // CW_BAR_FOCUS_MS shortens the interval to test a break; CW_BAR_START opens one on breathing; CW_BAR_SKY fixes the sky;
 // CW_BAR_SETTINGS, CW_BAR_POPOVER and CW_BAR_HOME open those at launch
 const interval = () => Number(process.env.CW_BAR_FOCUS_MS ?? intervalOf(prefs.every))
-const reminder = new Reminder(Date.now(), interval())
-let pausedUntil = 0
 
 let weather: Conditions | null = null
 let skyRead = 0
@@ -69,7 +69,7 @@ const readExtra = async () => {
   }
 }
 
-const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, clock: prefs.clock, next: reminder.nextBreakAt, quiet: prefs.quiet ? quietEnd(Date.now(), prefs.quietFrom, prefs.quietTo) : 0, paused: pausedUntil > Date.now() ? pausedUntil : 0, every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra })
+const status = (): Status => ({ version, update: updateLine, theme: prefs.theme, windowed: prefs.windowed, clock: prefs.clock, ...core.state(), every: prefs.every, look: prefs.look, sound: prefs.sound, volume: prefs.volume / 100, sky: skyNow(), live: liveSky(), extra, sync: sync.state() })
 
 const setLogin = async (on: boolean) => {
   const app = process.execPath.split(".app/")[0] + ".app"
@@ -78,16 +78,20 @@ const setLogin = async (on: boolean) => {
   else await rm(LOGIN, { force: true })
 }
 
-async function apply(next: Prefs) {
+async function apply(next: Prefs, fromSync = false) {
   const before = prefs
   prefs = { ...prefs, ...migrate({ ...prefs, ...next }) }
-  if (prefs.every !== before.every) reminder.setInterval(Date.now(), interval())
+  if (prefs.every !== before.every) core.retime()
   if (prefs.login !== before.login) await setLogin(prefs.login).catch(() => undefined)
   if (prefs.menuPlugin !== before.menuPlugin) await readExtra()
   if (prefs.weather !== before.weather || prefs.city?.name !== before.city?.name) void readSky(true)
   await savePrefs(SETTINGS, prefs).catch(() => undefined)
+  if (!fromSync) sync.changed()
   push()
 }
+
+const sync = syncService({ store: fileStore(SYNC), prefs: () => prefs, apply: (next) => void apply(next, true), synced: push, base: "https://sea.cwdx.md/" })
+const synced = <T>(work: Promise<T>) => work.finally(push)
 
 /** The main display as a 96px mosaic for the dissolve; empty when screen recording is refused, and the break then simply fades in. */
 const shoot = async () => {
@@ -104,9 +108,9 @@ const shoot = async () => {
 }
 
 type Handlers = Partial<BarRPC["bun"]["messages"] extends infer M ? { [K in keyof M]: (p: M[K]) => void } : never>
-const NONE = { close: () => undefined, finish: () => undefined, snooze: () => undefined, sound: () => undefined, save: () => undefined, breakNow: () => undefined, pause: () => undefined, settings: () => undefined, home: () => undefined, full: () => undefined, update: () => undefined, quit: () => undefined, fit: () => undefined }
+const NONE = { close: () => undefined, finish: () => undefined, snooze: () => undefined, sound: () => undefined, syncOn: () => undefined, save: () => undefined, breakNow: () => undefined, pause: () => undefined, settings: () => undefined, home: () => undefined, full: () => undefined, update: () => undefined, quit: () => undefined, fit: () => undefined }
 const bridge = (messages: Handlers, session?: () => Session) =>
-  BrowserView.defineRPC<BarRPC>({ handlers: { requests: { session: session ?? (() => ({}) as Session), prefs: () => prefs, status, place }, messages: { ...NONE, ...messages } } })
+  BrowserView.defineRPC<BarRPC>({ handlers: { requests: { session: session ?? (() => ({}) as Session), prefs: () => prefs, status, place, syncOffer: () => synced(sync.offer()), syncJoin: ({ text }) => synced(sync.join(text)) }, messages: { ...NONE, ...messages } } })
 
 const frameScreen = (w: BrowserWindow, display: { bounds: { x: number; y: number; width: number; height: number } }, windowed: boolean, glide = true, onBreak = false) => {
   const b = display.bounds, k = windowed ? 0.8 : 1, width = Math.round(b.width * k), height = Math.round(b.height * k)
@@ -132,7 +136,6 @@ const pointed = (displays = Screen.getAllDisplays()) => {
 }
 
 let breaks: BrowserWindow[] = []
-let uncounted = false
 let opening = false
 const openBreak = async (start = prefs.start) => {
   if (breaks.length || opening) return
@@ -154,16 +157,12 @@ const openBreak = async (start = prefs.start) => {
     windowed,
     shot,
   }
-  uncounted = false
   breaks = (windowed ? [lead!] : displays).map((display) => {
     const session: Session = { ...base, lead: display === lead, shot: display === lead ? shot : "" }
     const rpc = bridge({
-      finish: finishBreak,
-      snooze: snoozeBreak,
-      pause: (p) => {
-        finishBreak()
-        pause(p)
-      },
+      finish: () => core.finish(),
+      snooze: () => core.snooze(),
+      pause: ({ for: ms }) => core.pause(ms),
       sound: ({ on }) => void apply({ ...prefs, sound: on }),
       settings: () => openSettings("break"),
       full: ({ on }) => {
@@ -177,43 +176,25 @@ const openBreak = async (start = prefs.start) => {
     overFullScreenApps(w.ptr)
     return w
   })
-  GlobalShortcut.register("Escape", finishBreak)
+  GlobalShortcut.register("Escape", () => core.finish())
   // the main screen goes once the break has faded in over it, so the desktop never shows between them
   setTimeout(() => home?.close(), 1500)
   opening = false
 }
-function finishBreak() {
-  if (!breaks.length) return
+function closeBreaks() {
   for (const w of breaks) w.close()
   breaks = []
   GlobalShortcut.unregister("Escape")
-  // a break counts the next one from now, unless the reminder has already started over
-  if (!uncounted) reminder.finish(Date.now())
-  uncounted = false
 }
-function snoozeBreak() {
-  finishBreak()
-  snoozeFor(reminder, Date.now(), status(), interval())
-  push()
-}
-/** Skipping the coming break leaves the one after it where it was: a whole interval later. */
-const skip = () => {
-  reminder.postpone(Date.now(), interval())
-  push()
-}
-const takeBreak = ({ start }: { start?: Session["start"] } = {}) => {
-  if (reminder.start(Date.now())) void openBreak(start)
-}
-const pause = ({ for: ms }: { for: number }) => {
-  pausedUntil = pauseFor(reminder, Date.now(), ms, interval())
-  push()
-}
+const takeBreak = ({ start }: { start?: Session["start"] } = {}) => core.breakNow(start)
+
+const core = new Core({ now: Date.now, interval, prefs: () => prefs, open: (start) => void openBreak(start), close: () => breaks.length && closeBreaks(), push })
 
 const tray = new Tray({ title: "", image: "views://tray/iconTemplate.png", template: true, width: 22, height: 22 })
 let room = Screen.getPrimaryDisplay().workArea
 const popoverRpc = bridge({
   breakNow: takeBreak,
-  finish: skip,
+  finish: () => core.skip(),
   settings: () => {
     popover.close()
     openSettings("popover")
@@ -221,7 +202,7 @@ const popoverRpc = bridge({
   home: openHome,
   sound: ({ on }) => void apply({ ...prefs, sound: on }),
   save: (next) => void apply(next),
-  pause,
+  pause: ({ for: ms }) => core.pause(ms),
   quit: () => Utils.quit(),
   close: () => popover.close(),
   fit: ({ height }) => panel.setSize(330, Math.min(height, room.height)),
@@ -247,6 +228,7 @@ const openPopover = () => {
   // a click on the icon first takes the focus from the panel, which closes it: that click is the close, not a new open
   if (Date.now() - hiddenAt < 300) return
   settings?.close()
+  void sync.focus()
   const icon = tray.getBounds(), displays = Screen.getAllDisplays()
   room = (displays.find(({ bounds: b }) => icon.x >= b.x && icon.x < b.x + b.width) ?? displays[0]!).workArea
   const frame = anchorBelow(icon, room, panel.getSize())
@@ -267,7 +249,7 @@ function openHome() {
   const close = () => home?.close()
   homeRpc = bridge({
     breakNow: takeBreak,
-    finish: skip,
+    finish: () => core.skip(),
     settings: () => {
       close()
       openSettings("home")
@@ -291,11 +273,13 @@ let settingsRpc: ReturnType<typeof bridge> | undefined
 /** Settings that open unasked are rare and left no trace, so each opening names what asked for it and what was on screen. */
 function openSettings(from: string) {
   void appendFile(join(homedir(), "Library/Logs/out-to-sea.log"), `${new Date().toISOString()} settings from ${from}; break ${breaks.length}, home ${!!home}, popover ${panel.isVisible()}, open ${!!settings}\n`).catch(() => undefined)
+  void sync.focus()
   if (settings) return settings.activate()
   void readSky(true)
   const area = Screen.getPrimaryDisplay().workArea
   const rpc = bridge({
     save: (next) => void apply(next),
+    syncOn: ({ on }) => void synced(on ? sync.on() : sync.off()),
     breakNow: takeBreak,
     update: () => void update(true),
     home: () => {
@@ -324,6 +308,7 @@ Utils.setDockIconVisible(false)
 if (prefs.login) void setLogin(true).catch(() => undefined)
 void readSky(true)
 void readExtra()
+void sync.open()
 if (process.env.CW_BAR_SETTINGS) openSettings("env")
 if (process.env.CW_BAR_HOME) openHome()
 // the tray's bounds are only known once the menu bar has laid it out
@@ -358,18 +343,10 @@ setTimeout(() => prefs.autoUpdate && void update(), 60_000)
 setInterval(() => prefs.autoUpdate && void update(), 6 * 3_600_000)
 
 setInterval(() => {
-  const now = Date.now()
-  if (pausedUntil && now >= pausedUntil) pausedUntil = 0
-  const event = reminder.tick(now)
-  if (event === "start" && !holdQuiet(reminder, now, prefs)) void openBreak()
-  // after a long sleep the reminder has already started a fresh interval; a break still showing just closes
-  if (event === "reset") {
-    uncounted = true
-    finishBreak()
-  }
-  const next = reminder.nextBreakAt
-  if (next !== null && next - now < 120_000) void readSky()
-  const title = next === null || !prefs.every ? "" : `${Math.max(1, Math.ceil((next - now) / 60_000))}m`
+  core.tick()
+  const { next } = core.state()
+  if (next !== null && next - Date.now() < 120_000) void readSky()
+  const title = next === null || !prefs.every ? "" : `${Math.max(1, Math.ceil((next - Date.now()) / 60_000))}m`
   if (title !== tray.title) tray.setTitle(title)
 }, HEARTBEAT)
 setInterval(() => void readExtra(), 60_000)

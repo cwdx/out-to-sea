@@ -1,5 +1,5 @@
-# Builds the Mac app for Apple silicon and Intel and publishes both as a GitHub release whenever the app's version
-# (packages/out-to-sea/package.json) has none yet.
+# Builds the Mac app for Apple silicon and Intel and a debug Android APK, and publishes them as a GitHub release whenever
+# the app's version (packages/out-to-sea/package.json) has none yet. The iOS build is a check only and never blocks it.
 name: release
 
 on:
@@ -70,6 +70,66 @@ jobs:
           name: dmg-${{ matrix.arch }}
           path: packages/out-to-sea/out/*
 
+  android:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/out-to-sea
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          bun install
+          bun run build:views
+          bunx cap sync android
+          (cd android && ./gradlew assembleDebug)
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/OutToSea-$TAG-android.apk"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: apk
+          path: packages/out-to-sea/out/*
+
+  ios:
+    needs: version
+    if: needs.version.outputs.new == 'true'
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: packages/out-to-sea
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Build for the Simulator
+        run: |
+          # built locally with Xcode 26.2; take the newest stable 26.x the image has
+          sudo xcode-select -s "$(printf '%s\n' /Applications/Xcode_26.*.app | grep -v beta | sort -V | tail -1)"
+          bun install
+          bun run build:views
+          bunx cap sync ios
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
   publish:
     needs: [version, build]
     runs-on: ubuntu-latest
@@ -87,3 +147,18 @@ jobs:
         run: |
           gh release create "$TAG" OutToSea-*.dmg stable-macos-* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Out to Sea $TAG" \
             --notes "Download arm64 for Apple silicon, x64 for Intel. Not yet signed: see the README to open it the first time."
+
+  publish-android:
+    needs: [version, android, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: apk
+      - name: Attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release upload "$TAG" OutToSea-*-android.apk --repo "$GITHUB_REPOSITORY"
